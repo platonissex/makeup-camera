@@ -1,0 +1,246 @@
+{
+  "lookId": "natural_brow_v1",
+  "version": "1.0.0",
+  "name": "自然眉",
+  "level": "beginner",
+  "estMinutes": 6,
+  "tags": ["眉毛", "新手", "单项"],
+  "summary": "先点出眉头、眉峰和眉尾，再顺着下边缘把眉形填起来。",
+  "supportedEyeTypes": ["monolid", "inner_double", "double"],
+  "kit": [
+    {"tool": "brow_pencil", "label": "眉笔", "required": true, "alt": ["眉粉"]},
+    {"tool": "spoolie", "label": "螺旋眉刷", "required": false, "alt": ["干净的眉笔另一头"]}
+  ],
+  "steps": [
+    {
+      "stepId": "b1_points",
+      "title": "定三个点",
+      "region": "brow",
+      "tool": "brow_pencil",
+      "toolLabel": "眉笔",
+      "side": "both_sequential",
+      "mirror": true,
+      "anchors": ["R_BROW_INNER_DOWN", "R_BROW_PEAK", "R_BROW_OUTER_DOWN", "R_EYE_OUTER"],
+      "geometry": {
+        "markers": [
+          {"id": "head", "at": {"lm": "R_BROW_INNER_DOWN"}, "style": "target_dot"},
+          {"id": "peak", "at": {"lm": "R_BROW_PEAK"}, "style": "target_dot"},
+          {"id": "tail", "at": {"lm": "R_BROW_OUTER_DOWN"}, "style": "target_dot"}
+        ],
+        "guides": [
+          {"id": "head_line", "from": {"lm": "R_NOSE_ALA"}, "to": {"lm": "R_BROW_INNER_DOWN"}, "extend": 0.04, "style": "dashed"},
+          {"id": "peak_line", "from": {"lm": "R_IRIS_OUTER"}, "to": {"lm": "R_BROW_PEAK"}, "extend": 0.08, "style": "dashed"},
+          {"id": "tail_line", "from": {"lm": "R_NOSE_ALA"}, "to": {"lm": "R_BROW_OUTER_DOWN"}, "extend": 0.05, "style": "dashed"}
+        ]
+      },
+      "animation": {
+        "type": "marker_sequence",
+        "markerIds": ["head", "peak", "tail"],
+        "demoRepeats": 2
+      },
+      "pressure": "light",
+      "script": {
+        "title": "先轻轻点三个小点",
+        "voice": "跟着虚线，在亮着的这一侧点出眉头、眉峰和眉尾。点要轻，后面都连这三个点。",
+        "tip": "虚线只是参照，不要把虚线也画上去。",
+        "commonMistakes": ["眉头点得太靠里，两条眉要连到一起", "眉尾掉到眼角下面"]
+      },
+      "estSeconds": 40,
+      "tracking": {"precision": "normal", "freezeOnBlink": false, "freezeOnOcclusion": true, "smoothing": "one_euro"}
+    },
+    {
+      "stepId": "b2_lower",
+      "title": "画下边缘",
+      "region": "brow",
+      "tool": "brow_pencil",
+      "toolLabel": "眉笔",
+      "side": "both_sequential",
+      "mirror": true,
+      "anchors": ["R_BROW_PEAK", "R_BROW_OUTER_DOWN"],
+      "geometry": {
+        "paths": [
+          {
+            "id": "lower",
+            "points": [
+              {"lm": "R_BROW_PEAK_UP"},
+              {"lm": "R_BROW_UPPER_MID"},
+              {"lm": "R_BROW_OUTER_UP"}
+            ],
+            "width": [0.022, 0.02, 0.014],
+            "style": "brow",
+            "u": "EW",
+            "renderMode": "persistent"
+          }
+        ]
+      },
+      "animation": {
+        "type": "brush_stroke",
+        "strokes": [{"path": "lower", "direction": "inner_to_outer", "segmented": true, "count": 3}],
+        "demoRepeats": 2
+      },
+      "pressure": "light",
+      "script": {
+        "title": "下边缘决定眉形",
+        "voice": "从眉峰顺着亮线画到眉尾，分成短短的三段，不要一笔拉完。",
+        "tip": "这一笔最要画准。手不稳就停下来，把手机靠稳。",
+        "commonMistakes": ["一笔画完，线发抖", "下边缘画得太低"]
+      },
+      "estSeconds": 60,
+      "tracking": {"precision": "normal", "freezeOnBlink": false, "freezeOnOcclusion": true, "smoothing": "one_euro"}
+    },
+    {
+      "stepId": "b3_fill",
+      "title": "填眉身和眉尾",
+      "region": "brow",
+      "tool": "brow_pencil",
+      "toolLabel": "眉笔",
+      "side": "both_sequential",
+      "mirror": true,
+      "anchors": ["R_BROW_PEAK", "R_BROW_OUTER_UP", "R_BROW_OUTER_DOWN"],
+      "geometry": {
+        "zones": [
+          {
+            "id": "body",
+            "points": [
+              {"lm": "R_BROW_PEAK_UP"},
+              {"lm": "R_BROW_UPPER_MID"},
+              {"lm": "R_BROW_OUTER_UP"},
+              {"lm": "R_BROW_OUTER_DOWN"},
+              {"lm": "R_BROW_LOWER_MID"},
+              {"lm": "R_BROW_PEAK"}
+            ],
+            "feather": 0.045,
+            "u": "EW",
+            "fillStyle": "brow"
+          }
+        ],
+        "paths": [
+          {
+            "id": "hair",
+            "points": [
+              {"lm": "R_BROW_PEAK_UP"},
+              {"lm": "R_BROW_PEAK"}
+            ],
+            "width": [0.01, 0.006],
+            "u": "EW",
+            "style": "brow",
+            "renderMode": "persistent"
+          },
+          {
+            "id": "hair_tail",
+            "points": [
+              {"lm": "R_BROW_OUTER_UP"},
+              {"lm": "R_BROW_OUTER_DOWN"}
+            ],
+            "width": [0.01, 0.005],
+            "u": "EW",
+            "style": "brow",
+            "renderMode": "persistent"
+          }
+        ]
+      },
+      "animation": {
+        "type": "brush_stroke",
+        "strokes": [
+          {"path": "hair", "direction": "inner_to_outer", "count": 4, "segmented": true},
+          {"path": "hair_tail", "direction": "inner_to_outer", "count": 3, "segmented": true}
+        ],
+        "demoRepeats": 2
+      },
+      "pressure": "light",
+      "script": {
+        "title": "一根一根填，不要涂成一块",
+        "voice": "在着色的这一块里，顺着眉毛长的方向画短线，像画小草，眉尾可以稍微实一点。",
+        "tip": "颜色宁淡。画重了用螺旋刷往上扫开。",
+        "commonMistakes": ["涂成一个实心块", "眉峰前面也填得很深"]
+      },
+      "estSeconds": 90,
+      "check": {
+        "type": "llm_photo",
+        "optional": true,
+        "rubric": "眉峰到眉尾是否顺着下边缘，有没有涂成一块，眉尾有没有下垂"
+      },
+      "tracking": {"precision": "normal", "freezeOnBlink": false, "freezeOnOcclusion": true, "smoothing": "one_euro"}
+    },
+    {
+      "stepId": "b4_head",
+      "title": "把眉头晕淡",
+      "region": "brow",
+      "tool": "spoolie",
+      "toolLabel": "螺旋眉刷",
+      "side": "both_sequential",
+      "mirror": true,
+      "anchors": ["R_BROW_INNER_UP", "R_BROW_INNER_DOWN"],
+      "geometry": {
+        "zones": [
+          {
+            "id": "head",
+            "points": [
+              {"lm": "R_BROW_INNER_UP"},
+              {"lm": "R_BROW_MID_UP"},
+              {"lm": "R_BROW_LOWER_IN"},
+              {"lm": "R_BROW_INNER_DOWN"},
+              {"lerp": ["GLABELLA", "R_BROW_INNER_DOWN", 0.35]}
+            ],
+            "feather": 0.09,
+            "u": "EW",
+            "fillStyle": "brow"
+          }
+        ]
+      },
+      "animation": {
+        "type": "radial",
+        "origin": {"lm": "R_BROW_INNER_DOWN"},
+        "count": 5,
+        "demoRepeats": 2
+      },
+      "pressure": "light",
+      "blend": "向上、向外扫",
+      "script": {
+        "title": "眉头越淡越自然",
+        "voice": "用螺旋刷在眉头这一小块向上向外扫两三次，把边缘扫开，不要留一个方方的头。",
+        "tip": "没有螺旋刷，就用眉笔干净的那一头轻轻带开。",
+        "commonMistakes": ["眉头画成方形", "两条眉头连在一起"]
+      },
+      "estSeconds": 30,
+      "tracking": {"precision": "normal", "freezeOnBlink": false, "freezeOnOcclusion": true, "smoothing": "one_euro"}
+    },
+    {
+      "stepId": "b5_check",
+      "title": "对一下两边",
+      "region": "finish",
+      "tool": "spoolie",
+      "toolLabel": "螺旋眉刷",
+      "side": "both_simultaneous",
+      "mirror": true,
+      "anchors": ["R_BROW_INNER_DOWN", "L_BROW_INNER_DOWN"],
+      "geometry": {
+        "paths": [
+          {
+            "id": "outline",
+            "contour": "right_brow",
+            "width": [0.01],
+            "style": "brow",
+            "u": "EW",
+            "renderMode": "persistent"
+          }
+        ],
+        "markers": [
+          {"id": "head", "at": {"lm": "R_BROW_INNER_DOWN"}, "style": "target_dot"},
+          {"id": "peak", "at": {"lm": "R_BROW_PEAK"}, "style": "target_dot"},
+          {"id": "tail", "at": {"lm": "R_BROW_OUTER_DOWN"}, "style": "target_dot"}
+        ]
+      },
+      "animation": {"type": "none", "demoRepeats": 1},
+      "pressure": "light",
+      "script": {
+        "title": "看高低，不看左右这两个字",
+        "voice": "两边一起亮着。看眉头是不是一样高，眉尾有没有一边掉下去。不平就只修低的那一侧。",
+        "tip": "镜子里高的那一侧，就是你脸上高的那一侧。",
+        "commonMistakes": ["为了对称把两边都画深了"]
+      },
+      "estSeconds": 30,
+      "tracking": {"precision": "normal", "freezeOnBlink": false, "freezeOnOcclusion": true, "smoothing": "one_euro"}
+    }
+  ]
+}

@@ -1,0 +1,795 @@
+{
+  "lookId": "daily_commute_v1",
+  "version": "1.0.0",
+  "name": "日常通勤妆",
+  "level": "beginner",
+  "estMinutes": 25,
+  "tags": ["通勤", "自然", "新手", "完整妆"],
+  "summary": "底妆、眉毛、大地色眼影、短眼尾、睫毛、腮红和口红。修容放到以后的单项里，避免这一套太长。",
+  "supportedEyeTypes": ["monolid", "inner_double", "double"],
+  "kit": [
+    {"tool": "moisturizer", "label": "乳液", "required": false, "alt": ["面霜"]},
+    {"tool": "foundation", "label": "粉底液", "required": true, "alt": ["气垫"]},
+    {"tool": "foundation_sponge", "label": "湿美妆蛋", "required": true, "alt": ["手指"]},
+    {"tool": "concealer", "label": "遮瑕", "required": false, "alt": ["浅一号的粉底"]},
+    {"tool": "loose_powder", "label": "散粉", "required": false, "alt": ["粉饼"]},
+    {"tool": "brow_pencil", "label": "眉笔", "required": true, "alt": ["眉粉"]},
+    {"tool": "spoolie", "label": "螺旋眉刷", "required": false, "alt": []},
+    {"tool": "eyeshadow", "label": "大地色眼影", "required": true, "alt": []},
+    {"tool": "eyeshadow_brush_flat", "label": "扁平眼影刷", "required": false, "alt": ["手指"]},
+    {"tool": "gel_eyeliner_pen", "label": "眼线胶笔", "required": true, "alt": ["棕色眼线液"]},
+    {"tool": "eyelash_curler", "label": "睫毛夹", "required": false, "alt": []},
+    {"tool": "mascara", "label": "睫毛膏", "required": true, "alt": []},
+    {"tool": "blush", "label": "腮红", "required": true, "alt": ["口红在手背上调淡"]},
+    {"tool": "lipstick", "label": "口红", "required": true, "alt": ["唇釉"]}
+  ],
+  "steps": [
+    {
+      "stepId": "s01_prep",
+      "title": "妆前薄涂",
+      "region": "skin",
+      "tool": "moisturizer",
+      "toolLabel": "手指 / 乳液",
+      "side": "center",
+      "mirror": false,
+      "anchors": ["FOREHEAD", "CHIN", "NOSE_TIP"],
+      "geometry": {
+        "zones": [
+          {
+            "id": "face",
+            "contour": "face_oval",
+            "holes": ["right_eye", "left_eye", "lip_outer"],
+            "feather": 0.02,
+            "u": "FW",
+            "fillStyle": "color"
+          }
+        ]
+      },
+      "animation": {"type": "radial", "origin": {"lm": "NOSE_TIP"}, "count": 8, "demoRepeats": 2},
+      "pressure": "light",
+      "blend": "由中间向外",
+      "script": {
+        "title": "薄薄一层，避开眼睛和嘴唇",
+        "voice": "挖一点乳液，从脸中间向外推开。眼睛和嘴唇那一圈空着，不用涂。",
+        "tip": "这一步可以跳过。涂完等它吸收一下再上粉底，脸会不容易卡粉。",
+        "commonMistakes": ["涂太厚，粉底浮在上面"]
+      },
+      "estSeconds": 60,
+      "tracking": {"precision": "normal", "freezeOnBlink": false, "freezeOnOcclusion": true, "smoothing": "one_euro"}
+    },
+    {
+      "stepId": "s02_foundation_dots",
+      "title": "粉底点五个点",
+      "region": "skin",
+      "tool": "foundation",
+      "toolLabel": "粉底液",
+      "side": "center",
+      "mirror": false,
+      "anchors": ["FOREHEAD", "NOSE_TIP", "CHIN"],
+      "geometry": {
+        "markers": [
+          {"id": "forehead", "at": {"lm": "FOREHEAD"}, "style": "target_dot"},
+          {"id": "nose", "at": {"lm": "NOSE_TIP"}, "style": "target_dot"},
+          {"id": "chin", "at": {"lm": "CHIN", "off": [0, 0.02], "u": "FW"}, "style": "target_dot"},
+          {"id": "cheek_r", "at": {"avg": ["R_CHEEK_1", "R_CHEEK_2", "R_CHEEK_3"]}, "style": "target_dot"},
+          {"id": "cheek_l", "at": {"avg": ["L_CHEEK_1", "L_CHEEK_2", "L_CHEEK_3"]}, "style": "target_dot"}
+        ]
+      },
+      "animation": {
+        "type": "marker_sequence",
+        "markerIds": ["forehead", "nose", "chin", "cheek_r", "cheek_l"],
+        "demoRepeats": 2
+      },
+      "pressure": "light",
+      "script": {
+        "title": "每个点一颗黄豆就够",
+        "voice": "在五个亮点上各点一颗黄豆大小的粉底。先不要推开。",
+        "tip": "点多了会厚。脸颊的点落在苹果肌，不是太阳穴。",
+        "commonMistakes": ["五个点挤成一条", "只点额头"]
+      },
+      "estSeconds": 20,
+      "tracking": {"precision": "normal", "freezeOnBlink": false, "freezeOnOcclusion": true, "smoothing": "one_euro"}
+    },
+    {
+      "stepId": "s03_foundation_blend",
+      "title": "把粉底拍开",
+      "region": "skin",
+      "tool": "foundation_sponge",
+      "toolLabel": "湿美妆蛋",
+      "side": "center",
+      "mirror": false,
+      "anchors": ["FOREHEAD", "NOSE_TIP", "CHIN", "R_FACE_LAT"],
+      "geometry": {
+        "zones": [
+          {
+            "id": "forehead",
+            "points": [
+              {"lm": "FOREHEAD", "off": [-0.22, 0.16], "u": "FW"},
+              {"lm": "FOREHEAD", "off": [0.22, 0.16], "u": "FW"},
+              {"lm": "FOREHEAD", "off": [0.16, -0.04], "u": "FW"},
+              {"lm": "FOREHEAD", "off": [-0.16, -0.04], "u": "FW"}
+            ],
+            "feather": 0.03,
+            "u": "FW"
+          },
+          {
+            "id": "nose",
+            "points": [
+              {"lm": "NOSE_BRIDGE", "off": [-0.035, 0.04], "u": "FW"},
+              {"lm": "NOSE_BRIDGE", "off": [0.035, 0.04], "u": "FW"},
+              {"lm": "NOSE_BASE", "off": [0.04, -0.02], "u": "FW"},
+              {"lm": "NOSE_BASE", "off": [-0.04, -0.02], "u": "FW"}
+            ],
+            "feather": 0.02,
+            "u": "FW"
+          },
+          {
+            "id": "cheek_r",
+            "ellipse": {"center": {"avg": ["R_CHEEK_1", "R_CHEEK_2", "R_CHEEK_3"]}, "rx": 0.09, "ry": 0.08, "rotationDeg": 0, "u": "FW"},
+            "feather": 0.03,
+            "u": "FW"
+          },
+          {
+            "id": "cheek_l",
+            "ellipse": {"center": {"avg": ["L_CHEEK_1", "L_CHEEK_2", "L_CHEEK_3"]}, "rx": 0.09, "ry": 0.08, "rotationDeg": 0, "u": "FW"},
+            "feather": 0.03,
+            "u": "FW"
+          },
+          {
+            "id": "chin",
+            "points": [
+              {"lm": "CHIN", "off": [-0.1, 0.06], "u": "FW"},
+              {"lm": "CHIN", "off": [0.1, 0.06], "u": "FW"},
+              {"lm": "CHIN", "off": [0.08, -0.05], "u": "FW"},
+              {"lm": "CHIN", "off": [-0.08, -0.05], "u": "FW"}
+            ],
+            "feather": 0.03,
+            "u": "FW"
+          }
+        ]
+      },
+      "animation": {
+        "type": "zone_pulse",
+        "zoneIds": ["forehead", "nose", "cheek_r", "cheek_l", "chin"],
+        "demoRepeats": 2
+      },
+      "pressure": "light",
+      "script": {
+        "title": "拍，不要来回擦",
+        "voice": "美妆蛋打湿挤干。亮着的这一块用按压推开，一块一块来，下颌再往脖子带一下。",
+        "tip": "擦来擦去会把粉底擦掉，也会带出干纹。",
+        "commonMistakes": ["美妆蛋是干的，把粉底吃掉", "脸上和脖子两个颜色"]
+      },
+      "estSeconds": 180,
+      "tracking": {"precision": "normal", "freezeOnBlink": false, "freezeOnOcclusion": true, "smoothing": "one_euro"}
+    },
+    {
+      "stepId": "s04_concealer",
+      "title": "遮黑眼圈",
+      "region": "eye",
+      "tool": "concealer",
+      "toolLabel": "遮瑕",
+      "side": "both_simultaneous",
+      "mirror": true,
+      "anchors": ["R_EYE_INNER", "R_EYE_OUTER", "R_NOSE_ALA"],
+      "geometry": {
+        "zones": [
+          {
+            "id": "triangle",
+            "points": [
+              {"lm": "R_EYE_INNER", "off": [0.02, -0.14], "u": "EW"},
+              {"lm": "R_EYE_OUTER", "off": [0.04, -0.16], "u": "EW"},
+              {"lerp": ["R_EYE_LOWER_MID", "R_NOSE_ALA", 0.58]}
+            ],
+            "feather": 0.07,
+            "u": "EW",
+            "fillStyle": "skin"
+          }
+        ],
+        "paths": [
+          {
+            "id": "lashes",
+            "points": [
+              {"lm": "R_EYE_OUTER"},
+              {"lm": "R_EYE_LOWER_MID"},
+              {"lm": "R_EYE_INNER"}
+            ],
+            "width": [0.01],
+            "u": "EW",
+            "renderMode": "persistent",
+            "style": "forbidden"
+          }
+        ]
+      },
+      "animation": {"type": "zone_pulse", "zoneIds": ["triangle"], "demoRepeats": 2},
+      "pressure": "light",
+      "script": {
+        "title": "只点在发青的地方",
+        "voice": "在倒三角里点两三下，再用手指轻轻拍开。不要贴到下睫毛那条线。",
+        "tip": "红线是边界，遮瑕停在它下面。拍，不要抹。",
+        "commonMistakes": ["贴着下睫毛涂，眼睛看起来更肿"]
+      },
+      "estSeconds": 60,
+      "tracking": {"precision": "high", "freezeOnBlink": true, "freezeOnOcclusion": true, "smoothing": "one_euro_strong"}
+    },
+    {
+      "stepId": "s05_powder",
+      "title": "定妆",
+      "region": "skin",
+      "tool": "loose_powder",
+      "toolLabel": "散粉 + 粉扑",
+      "side": "center",
+      "mirror": false,
+      "anchors": ["FOREHEAD", "NOSE_TIP", "CHIN"],
+      "geometry": {
+        "zones": [
+          {
+            "id": "tzone",
+            "points": [
+              {"lm": "FOREHEAD", "off": [-0.1, 0.1], "u": "FW"},
+              {"lm": "FOREHEAD", "off": [0.1, 0.1], "u": "FW"},
+              {"lm": "NOSE_TIP", "off": [0.045, 0.02], "u": "FW"},
+              {"lm": "CHIN", "off": [0.07, 0.03], "u": "FW"},
+              {"lm": "CHIN", "off": [-0.07, 0.03], "u": "FW"},
+              {"lm": "NOSE_TIP", "off": [-0.045, 0.02], "u": "FW"}
+            ],
+            "feather": 0.025,
+            "u": "FW"
+          },
+          {
+            "id": "under_r",
+            "points": [
+              {"lm": "R_EYE_INNER", "off": [0.0, -0.1], "u": "EW"},
+              {"lm": "R_EYE_OUTER", "off": [0.04, -0.16], "u": "EW"},
+              {"lm": "R_NOSE_ALA"}
+            ],
+            "feather": 0.06,
+            "u": "EW"
+          },
+          {
+            "id": "under_l",
+            "points": [
+              {"lm": "L_EYE_INNER", "off": [0.0, -0.1], "u": "EW"},
+              {"lm": "L_EYE_OUTER", "off": [0.04, -0.16], "u": "EW"},
+              {"lm": "L_NOSE_ALA"}
+            ],
+            "feather": 0.06,
+            "u": "EW"
+          }
+        ]
+      },
+      "animation": {"type": "zone_pulse", "zoneIds": ["tzone", "under_r", "under_l"], "demoRepeats": 2},
+      "pressure": "light",
+      "script": {
+        "title": "粉扑按压，不要扫",
+        "voice": "粉扑上的粉先揉匀，多余的弹掉。T 字和眼下各按几下，把遮瑕固定住。",
+        "tip": "全脸都扑一层会显干。出油的地方多按两次就好。",
+        "commonMistakes": ["粉太多，脸发白"]
+      },
+      "estSeconds": 60,
+      "tracking": {"precision": "normal", "freezeOnBlink": false, "freezeOnOcclusion": true, "smoothing": "one_euro"}
+    },
+    {
+      "stepId": "s06_brow_points",
+      "title": "眉毛定三个点",
+      "region": "brow",
+      "tool": "brow_pencil",
+      "toolLabel": "眉笔",
+      "side": "both_sequential",
+      "mirror": true,
+      "anchors": ["R_BROW_INNER_DOWN", "R_BROW_PEAK", "R_BROW_OUTER_DOWN"],
+      "geometry": {
+        "markers": [
+          {"id": "head", "at": {"lm": "R_BROW_INNER_DOWN"}, "style": "target_dot"},
+          {"id": "peak", "at": {"lm": "R_BROW_PEAK"}, "style": "target_dot"},
+          {"id": "tail", "at": {"lm": "R_BROW_OUTER_DOWN"}, "style": "target_dot"}
+        ],
+        "guides": [
+          {"id": "head_line", "from": {"lm": "R_NOSE_ALA"}, "to": {"lm": "R_BROW_INNER_DOWN"}, "extend": 0.04, "style": "dashed"},
+          {"id": "peak_line", "from": {"lm": "R_IRIS_OUTER"}, "to": {"lm": "R_BROW_PEAK"}, "extend": 0.08, "style": "dashed"},
+          {"id": "tail_line", "from": {"lm": "R_NOSE_ALA"}, "to": {"lm": "R_BROW_OUTER_DOWN"}, "extend": 0.05, "style": "dashed"}
+        ]
+      },
+      "animation": {"type": "marker_sequence", "markerIds": ["head", "peak", "tail"], "demoRepeats": 2},
+      "pressure": "light",
+      "script": {
+        "title": "先点，再连",
+        "voice": "亮着的这一侧，顺着虚线点眉头、眉峰、眉尾。点轻一点。",
+        "tip": "虚线不要画上去。",
+        "commonMistakes": ["眉尾低于眼角"]
+      },
+      "estSeconds": 40,
+      "tracking": {"precision": "normal", "freezeOnBlink": false, "freezeOnOcclusion": true, "smoothing": "one_euro"}
+    },
+    {
+      "stepId": "s07_brow_lower",
+      "title": "画眉的下边缘",
+      "region": "brow",
+      "tool": "brow_pencil",
+      "toolLabel": "眉笔",
+      "side": "both_sequential",
+      "mirror": true,
+      "anchors": ["R_BROW_PEAK", "R_BROW_OUTER_DOWN"],
+      "geometry": {
+        "paths": [
+          {
+            "id": "lower",
+            "points": [{"lm": "R_BROW_PEAK_UP"}, {"lm": "R_BROW_UPPER_MID"}, {"lm": "R_BROW_OUTER_UP"}],
+            "width": [0.022, 0.02, 0.014],
+            "style": "brow",
+            "u": "EW",
+            "renderMode": "persistent"
+          }
+        ]
+      },
+      "animation": {"type": "brush_stroke", "strokes": [{"path": "lower", "direction": "inner_to_outer", "segmented": true, "count": 3}], "demoRepeats": 2},
+      "pressure": "light",
+      "script": {
+        "title": "下边缘最要画准",
+        "voice": "从眉峰到眉尾，沿着亮线分三段画。手抖了就停，不要一笔拉完。",
+        "tip": "这一笔决定眉形。",
+        "commonMistakes": ["线画得太低"]
+      },
+      "estSeconds": 60,
+      "tracking": {"precision": "normal", "freezeOnBlink": false, "freezeOnOcclusion": true, "smoothing": "one_euro"}
+    },
+    {
+      "stepId": "s08_brow_fill",
+      "title": "填眉身",
+      "region": "brow",
+      "tool": "brow_pencil",
+      "toolLabel": "眉笔",
+      "side": "both_sequential",
+      "mirror": true,
+      "anchors": ["R_BROW_PEAK", "R_BROW_OUTER_UP"],
+      "geometry": {
+        "zones": [
+          {
+            "id": "body",
+            "points": [
+              {"lm": "R_BROW_PEAK_UP"},
+              {"lm": "R_BROW_UPPER_MID"},
+              {"lm": "R_BROW_OUTER_UP"},
+              {"lm": "R_BROW_OUTER_DOWN"},
+              {"lm": "R_BROW_LOWER_MID"},
+              {"lm": "R_BROW_PEAK"}
+            ],
+            "feather": 0.045,
+            "u": "EW",
+            "fillStyle": "brow"
+          }
+        ],
+        "paths": [
+          {
+            "id": "hair",
+            "points": [
+              {"lm": "R_BROW_PEAK_UP"},
+              {"lm": "R_BROW_PEAK"}
+            ],
+            "width": [0.01, 0.006],
+            "u": "EW",
+            "style": "brow",
+            "renderMode": "persistent"
+          }
+        ]
+      },
+      "animation": {"type": "zone_pulse", "zoneIds": ["body"], "demoRepeats": 2},
+      "pressure": "light",
+      "script": {
+        "title": "像画小草，不要涂成一块",
+        "voice": "在着色的区域里顺着毛流方向画短线，眉尾可以稍实，眉峰前面留得淡。",
+        "tip": "画完可以用螺旋刷扫一下，把笔触变软。",
+        "commonMistakes": ["填成一个实心色块"]
+      },
+      "estSeconds": 90,
+      "check": {"type": "llm_photo", "optional": true, "rubric": "眉身是否一根根的，眉尾有没有下垂，两边高低是否接近"},
+      "tracking": {"precision": "normal", "freezeOnBlink": false, "freezeOnOcclusion": true, "smoothing": "one_euro"}
+    },
+    {
+      "stepId": "s09_brow_head",
+      "title": "晕开眉头",
+      "region": "brow",
+      "tool": "spoolie",
+      "toolLabel": "螺旋眉刷",
+      "side": "both_sequential",
+      "mirror": true,
+      "anchors": ["R_BROW_INNER_DOWN", "R_BROW_INNER_UP"],
+      "geometry": {
+        "zones": [
+          {
+            "id": "head",
+            "points": [
+              {"lm": "R_BROW_INNER_UP"},
+              {"lm": "R_BROW_MID_UP"},
+              {"lm": "R_BROW_LOWER_IN"},
+              {"lm": "R_BROW_INNER_DOWN"},
+              {"lerp": ["GLABELLA", "R_BROW_INNER_DOWN", 0.35]}
+            ],
+            "feather": 0.09,
+            "u": "EW",
+            "fillStyle": "brow"
+          }
+        ]
+      },
+      "animation": {"type": "radial", "origin": {"lm": "R_BROW_INNER_DOWN"}, "count": 5, "demoRepeats": 2},
+      "pressure": "light",
+      "blend": "向上向外",
+      "script": {
+        "title": "眉头要淡",
+        "voice": "螺旋刷在眉头这一小块向上向外扫，把颜色扫散，不要留一个方头。",
+        "tip": "两条眉毛之间留出一点皮肤。",
+        "commonMistakes": ["眉头太实"]
+      },
+      "estSeconds": 30,
+      "tracking": {"precision": "normal", "freezeOnBlink": false, "freezeOnOcclusion": true, "smoothing": "one_euro"}
+    },
+    {
+      "stepId": "s10_eyeshadow",
+      "title": "眼影打底",
+      "region": "eye",
+      "tool": "eyeshadow_brush_flat",
+      "toolLabel": "浅大地色 + 扁平刷",
+      "side": "both_sequential",
+      "mirror": true,
+      "anchors": ["R_EYE_OUTER", "R_EYE_INNER", "R_EYE_UPPER_MID"],
+      "geometry": {
+        "zones": [
+          {
+            "id": "eyeshadow",
+            "points": [
+              {"lm": "R_EYE_OUTER"},
+              {"lm": "R_EYE_UPPER_1"},
+              {"lm": "R_EYE_UPPER_2"},
+              {"lm": "R_EYE_UPPER_3"},
+              {"lm": "R_EYE_UPPER_MID"},
+              {"lm": "R_EYE_UPPER_5"},
+              {"lm": "R_EYE_UPPER_6"},
+              {"lm": "R_EYE_UPPER_7"},
+              {"lm": "R_EYE_INNER"},
+              {"lerp": ["R_EYE_INNER", "R_BROW_INNER_DOWN", 0.38]},
+              {"lerp": ["R_EYE_UPPER_6", "R_BROW_LOWER_IN", 0.42]},
+              {"lerp": ["R_EYE_UPPER_MID", "R_BROW_PEAK", 0.46]},
+              {"lerp": ["R_EYE_UPPER_2", "R_BROW_LOWER_MID", 0.50]},
+              {"lerp": ["R_EYE_OUTER", "R_BROW_OUTER_DOWN", 0.54]}
+            ],
+            "feather": 0.11,
+            "u": "EW",
+            "fillStyle": "lid"
+          }
+        ]
+      },
+      "animation": {"type": "zone_pulse", "zoneIds": ["eyeshadow"], "demoRepeats": 2},
+      "pressure": "light",
+      "blend": "左右来回，边缘扫开",
+      "script": {
+        "title": "浅色铺满眼皮",
+        "voice": "刷头在手背上拍掉多余的粉，在着色的这一片里左右轻扫，边缘要淡出去。",
+        "tip": "先少一点，不够再加。",
+        "commonMistakes": ["粉太多，一下就脏了"]
+      },
+      "estSeconds": 90,
+      "variants": [
+        {
+          "when": {"eyeType": "monolid"},
+          "override": {
+            "script.tip": "单眼皮睁眼能看见的范围不大，颜色铺在睁眼还露得出的那一截，再往上一点点就够。",
+            "geometry.zones.eyeshadow.points[9]": {"lerp": ["R_EYE_INNER", "R_BROW_INNER_DOWN", 0.20]},
+            "geometry.zones.eyeshadow.points[10]": {"lerp": ["R_EYE_UPPER_6", "R_BROW_LOWER_IN", 0.22]},
+            "geometry.zones.eyeshadow.points[11]": {"lerp": ["R_EYE_UPPER_MID", "R_BROW_PEAK", 0.26]},
+            "geometry.zones.eyeshadow.points[12]": {"lerp": ["R_EYE_UPPER_2", "R_BROW_LOWER_MID", 0.28]},
+            "geometry.zones.eyeshadow.points[13]": {"lerp": ["R_EYE_OUTER", "R_BROW_OUTER_DOWN", 0.32]}
+          }
+        },
+        {
+          "when": {"eyeType": "inner_double"},
+          "override": {"script.tip": "内双把浅色停在双眼皮褶附近，褶上只留很淡的一层。"}
+        }
+      ],
+      "tracking": {"precision": "high", "freezeOnBlink": true, "freezeOnOcclusion": true, "smoothing": "one_euro_strong"}
+    },
+    {
+      "stepId": "s11_eyeshadow_outer",
+      "title": "眼尾加深",
+      "region": "eye",
+      "tool": "eyeshadow_brush_flat",
+      "toolLabel": "深棕 + 小号刷",
+      "side": "both_sequential",
+      "mirror": true,
+      "anchors": ["R_EYE_OUTER", "R_EYE_UPPER_2"],
+      "geometry": {
+        "zones": [
+          {
+            "id": "outer",
+            "points": [
+              {"lm": "R_EYE_OUTER"},
+              {"lm": "R_EYE_UPPER_2"},
+              {"lerp": ["R_EYE_OUTER", "R_EYE_INNER", 0.34]},
+              {"lerp": ["R_EYE_UPPER_3", "R_BROW_LOWER_MID", 0.42]},
+              {"lerp": ["R_EYE_OUTER", "R_BROW_OUTER_DOWN", 0.46]}
+            ],
+            "feather": 0.10,
+            "u": "EW",
+            "fillStyle": "shadow"
+          }
+        ]
+      },
+      "animation": {"type": "zone_pulse", "zoneIds": ["outer"], "demoRepeats": 2},
+      "pressure": "light",
+      "blend": "从眼尾向内两笔，再向上晕开",
+      "script": {
+        "title": "只加深外侧三分之一",
+        "voice": "深色只放在眼尾这一小块，先向眼睛中间带一点，再向上扫开，不要扫到眉头。",
+        "tip": "颜色叠不上就先把刷子上的粉弹掉再蘸，不要越涂越厚。",
+        "commonMistakes": ["深色铺满整个眼皮"]
+      },
+      "estSeconds": 60,
+      "variants": [
+        {
+          "when": {"eyeType": "monolid"},
+          "override": {
+            "script.tip": "单眼皮的深色更靠外、更靠上一点，睁眼检查还能不能看见。",
+            "geometry.zones.outer.points[4]": {"lerp": ["R_EYE_OUTER", "R_BROW_OUTER_DOWN", 0.62]}
+          }
+        }
+      ],
+      "tracking": {"precision": "high", "freezeOnBlink": true, "freezeOnOcclusion": true, "smoothing": "one_euro_strong"}
+    },
+    {
+      "stepId": "s12_eyeliner",
+      "title": "内眼线和小眼尾",
+      "region": "eye",
+      "tool": "gel_eyeliner_pen",
+      "toolLabel": "眼线胶笔",
+      "side": "both_sequential",
+      "mirror": true,
+      "anchors": ["R_EYE_OUTER", "R_EYE_INNER", "R_EYE_UPPER_MID"],
+      "geometry": {
+        "paths": [
+          {
+            "id": "lashline",
+            "points": [
+              {"lm": "R_EYE_UPPER_7"},
+              {"lm": "R_EYE_UPPER_6"},
+              {"lm": "R_EYE_UPPER_5"},
+              {"lm": "R_EYE_UPPER_MID"},
+              {"lm": "R_EYE_UPPER_3"},
+              {"lm": "R_EYE_UPPER_2"},
+              {"lm": "R_EYE_UPPER_1"},
+              {"lm": "R_EYE_OUTER"}
+            ],
+            "width": [0.012, 0.016, 0.022, 0.03],
+            "style": "liner",
+            "u": "EW",
+            "renderMode": "preview_only"
+          },
+          {
+            "id": "wing",
+            "points": [
+              {"lm": "R_EYE_OUTER"},
+              {"lm": "R_EYE_OUTER", "off": [0.26, 0.06], "u": "EW"}
+            ],
+            "width": [0.028, 0.008],
+            "style": "liner",
+            "u": "EW",
+            "renderMode": "persistent"
+          }
+        ],
+        "markers": [
+          {"id": "wing_end", "at": {"lm": "R_EYE_OUTER", "off": [0.26, 0.06], "u": "EW"}, "style": "target_dot"}
+        ],
+        "guides": [
+          {"id": "wing_dir", "from": {"lm": "R_EYE_LOWER_MID"}, "to": {"lm": "R_EYE_OUTER", "off": [0.26, 0.06], "u": "EW"}, "extend": 0.06, "style": "dashed"}
+        ]
+      },
+      "animation": {
+        "type": "brush_stroke",
+        "strokes": [
+          {"path": "lashline", "direction": "inner_to_outer", "segmented": true, "count": 3},
+          {"path": "wing", "direction": "outer_to_end", "count": 1}
+        ],
+        "demoRepeats": 2
+      },
+      "pressure": "light",
+      "script": {
+        "title": "贴着睫毛根，眼尾收到亮点",
+        "voice": "眼睛往下看。从眼睛中间开始，一小段一小段贴着睫毛根往外画，最后从眼角拉到亮点。",
+        "tip": "宁可细，不要粗。画歪了用棉签蘸一点乳液擦掉。跟画的时候睫毛根那条线会收起来，只留眼尾的点和方向。",
+        "commonMistakes": ["眼尾下垂", "一笔画完导致线发抖"]
+      },
+      "estSeconds": 150,
+      "check": {"type": "llm_photo", "optional": true, "rubric": "两侧眼尾长短和角度是否接近，眼尾有没有下垂，线条是否连上"},
+      "variants": [
+        {
+          "when": {"eyeType": "monolid"},
+          "override": {
+            "script.tip": "单眼皮睁眼时眼皮会盖住一部分，眼线可以略粗，眼尾再往上扬一点，睁眼后检查还能不能看见。",
+            "geometry.paths.wing.points[1]": {"lm": "R_EYE_OUTER", "off": [0.18, 0.15], "u": "EW"},
+            "geometry.markers.wing_end.at": {"lm": "R_EYE_OUTER", "off": [0.18, 0.15], "u": "EW"},
+            "geometry.guides.wing_dir.to": {"lm": "R_EYE_OUTER", "off": [0.18, 0.15], "u": "EW"},
+            "geometry.paths.lashline.width": [0.016, 0.022, 0.03, 0.04]
+          }
+        },
+        {
+          "when": {"eyeType": "inner_double"},
+          "override": {"script.tip": "内双眼线不要超过双眼皮褶，睁眼时能露出一点就可以。"}
+        }
+      ],
+      "tracking": {"precision": "high", "freezeOnBlink": true, "freezeOnOcclusion": true, "smoothing": "one_euro_strong"}
+    },
+    {
+      "stepId": "s13_lashes",
+      "title": "夹睫毛再刷",
+      "region": "lash",
+      "tool": "mascara",
+      "toolLabel": "睫毛夹 + 睫毛膏",
+      "side": "both_sequential",
+      "mirror": true,
+      "anchors": ["R_EYE_UPPER_MID", "R_EYE_OUTER"],
+      "geometry": {
+        "paths": [
+          {
+            "id": "lashline",
+            "points": [
+              {"lm": "R_EYE_OUTER"},
+              {"lm": "R_EYE_UPPER_2"},
+              {"lm": "R_EYE_UPPER_MID"},
+              {"lm": "R_EYE_UPPER_6"},
+              {"lm": "R_EYE_INNER"}
+            ],
+            "width": [0.016],
+            "u": "EW",
+            "renderMode": "preview_only"
+          },
+          {
+            "id": "up_outer",
+            "points": [{"lm": "R_EYE_UPPER_2"}, {"lm": "R_EYE_UPPER_2", "off": [0.02, 0.22], "u": "EW"}],
+            "width": [0.012, 0.004],
+            "u": "EW",
+            "renderMode": "persistent"
+          },
+          {
+            "id": "up_mid",
+            "points": [{"lm": "R_EYE_UPPER_MID"}, {"lm": "R_EYE_UPPER_MID", "off": [0.0, 0.26], "u": "EW"}],
+            "width": [0.012, 0.004],
+            "u": "EW",
+            "renderMode": "persistent"
+          },
+          {
+            "id": "up_inner",
+            "points": [{"lm": "R_EYE_UPPER_6"}, {"lm": "R_EYE_UPPER_6", "off": [-0.02, 0.18], "u": "EW"}],
+            "width": [0.01, 0.004],
+            "u": "EW",
+            "renderMode": "persistent"
+          }
+        ]
+      },
+      "animation": {
+        "type": "brush_stroke",
+        "strokes": [
+          {"path": "up_outer", "count": 1},
+          {"path": "up_mid", "count": 1},
+          {"path": "up_inner", "count": 1}
+        ],
+        "demoRepeats": 2
+      },
+      "pressure": "light",
+      "script": {
+        "title": "根部、中段、尖端，再往上刷",
+        "voice": "睫毛夹从根部到尖端分三段，每段停一下。睫毛膏从根部往上，走一个小 Z 字。",
+        "tip": "跟画时睫毛根的线会藏起来，只留下往上的方向。夹的时候镜面朝上，不要夹到眼皮。",
+        "commonMistakes": ["只夹尖端，睫毛是直的", "睫毛膏结块"]
+      },
+      "estSeconds": 90,
+      "tracking": {"precision": "high", "freezeOnBlink": true, "freezeOnOcclusion": true, "smoothing": "one_euro_strong"}
+    },
+    {
+      "stepId": "s14_blush",
+      "title": "腮红",
+      "region": "cheek",
+      "tool": "blush",
+      "toolLabel": "腮红 + 腮红刷",
+      "side": "both_simultaneous",
+      "mirror": true,
+      "anchors": ["R_CHEEK_1", "R_CHEEK_2", "R_CHEEK_3"],
+      "geometry": {
+        "zones": [
+          {
+            "id": "blush",
+            "ellipse": {
+              "center": {"avg": ["R_CHEEK_1", "R_ZYGOMA"]},
+              "rx": 0.10,
+              "ry": 0.058,
+              "rotationDeg": 28,
+              "u": "FW"
+            },
+            "feather": 0.055,
+            "u": "FW",
+            "fillStyle": "blush"
+          }
+        ],
+        "markers": [
+          {"id": "apple", "at": {"avg": ["R_CHEEK_1", "R_ZYGOMA"]}, "style": "target_dot"}
+        ]
+      },
+      "animation": {"type": "zone_pulse", "zoneIds": ["blush"], "demoRepeats": 2},
+      "pressure": "light",
+      "blend": "打两个圈，再向耳朵上方扫开",
+      "script": {
+        "title": "落在苹果肌，边缘要消失",
+        "voice": "可以先微笑一下找最高的地方。刷子在椭圆里转两圈，再顺着长轴向外上方扫，颜色要淡。",
+        "tip": "中心要看得出颜色，边缘再淡出去。",
+        "commonMistakes": ["腮红贴到鼻翼", "颜色一下太深"]
+      },
+      "estSeconds": 60,
+      "variants": [
+        {
+          "when": {"faceShape": "round"},
+          "override": {
+            "script.tip": "脸偏圆的话，腮红的长轴更斜着向上，带一点纵向，不要横着铺在脸颊中间。",
+            "geometry.zones.blush.ellipse.rotationDeg": 50,
+            "geometry.zones.blush.ellipse.rx": 0.118,
+            "geometry.zones.blush.ellipse.center": {"lerp": ["R_CHEEK_1", "R_ZYGOMA", 0.72]},
+            "geometry.markers.apple.at": {"lerp": ["R_CHEEK_1", "R_ZYGOMA", 0.72]}
+          }
+        },
+        {
+          "when": {"faceShape": "long"},
+          "override": {
+            "script.tip": "脸偏长的话，腮红更平一些，横着放在苹果肌上，不要拉得太高。",
+            "geometry.zones.blush.ellipse.rotationDeg": 12,
+            "geometry.zones.blush.ellipse.rx": 0.115
+          }
+        }
+      ],
+      "tracking": {"precision": "normal", "freezeOnBlink": false, "freezeOnOcclusion": true, "smoothing": "one_euro"}
+    },
+    {
+      "stepId": "s15_lips",
+      "title": "口红",
+      "region": "lip",
+      "tool": "lipstick",
+      "toolLabel": "口红",
+      "side": "center",
+      "mirror": false,
+      "anchors": ["UPPER_LIP", "LOWER_LIP", "R_MOUTH", "L_MOUTH"],
+      "geometry": {
+        "zones": [
+          {
+            "id": "lip",
+            "contour": "lip_outer",
+            "holes": ["lip_inner"],
+            "feather": 0.012,
+            "u": "FW",
+            "fillStyle": "lip"
+          }
+        ],
+        "paths": [
+          {
+            "id": "outline",
+            "contour": "lip_outer",
+            "width": [0.008],
+            "u": "FW",
+            "style": "liner",
+            "renderMode": "persistent"
+          }
+        ],
+        "markers": [
+          {"id": "bow_r", "at": {"lm": "CUPID_R"}, "style": "target_dot"},
+          {"id": "bow", "at": {"lm": "UPPER_LIP"}, "style": "target_dot"},
+          {"id": "bow_l", "at": {"lm": "CUPID_L"}, "style": "target_dot"}
+        ]
+      },
+      "animation": {"type": "brush_stroke", "strokes": [{"path": "outline", "count": 1}], "demoRepeats": 2},
+      "pressure": "medium",
+      "script": {
+        "title": "先中间，再抿开",
+        "voice": "先点在嘴唇中间的亮点，上下唇都点到，抿一抿，边缘用手指晕开一点会更自然。",
+        "tip": "描完整个唇线再填满也可以，新手用手指把边收一收，不容易画出界。",
+        "commonMistakes": ["唇线画得比嘴唇大一圈"]
+      },
+      "estSeconds": 60,
+      "check": {"type": "llm_photo", "optional": true, "rubric": "整妆是否左右接近，眉尾和眼尾有没有下垂，腮红是否过重"},
+      "tracking": {"precision": "normal", "freezeOnBlink": false, "freezeOnOcclusion": true, "smoothing": "one_euro"}
+    }
+  ]
+}
