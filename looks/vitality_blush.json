@@ -1,0 +1,120 @@
+{
+  "lookId": "vitality_blush_v1",
+  "version": "1.0.0",
+  "name": "元气腮红",
+  "level": "beginner",
+  "estMinutes": 4,
+  "tags": ["腮红", "唇", "新手"],
+  "summary": "苹果肌先铺开，嘴唇只上一层淡的。眉毛轻轻带过，不要画重。",
+  "supportedEyeTypes": ["monolid", "inner_double", "double"],
+  "kit": [
+    {"tool": "blush", "label": "腮红", "required": true, "alt": ["口红在苹果肌上拍开"]},
+    {"tool": "lipstick", "label": "口红", "required": true, "alt": ["唇釉"]},
+    {"tool": "brow_pencil", "label": "眉笔", "required": false, "alt": ["眉粉"]}
+  ],
+  "steps": [
+    {
+      "stepId": "s14_blush",
+      "title": "铺开腮红",
+      "region": "cheek",
+      "tool": "blush",
+      "toolLabel": "腮红刷",
+      "side": "both_simultaneous",
+      "mirror": true,
+      "anchors": ["R_CHEEK_1", "R_CHEEK_2", "R_ZYGOMA"],
+      "geometry": {
+        "zones": [
+          {
+            "id": "blush",
+            "ellipse": {
+              "center": {"avg": ["R_CHEEK_1", "R_ZYGOMA"]},
+              "rx": 0.11,
+              "ry": 0.062,
+              "rotationDeg": 28,
+              "u": "FW"
+            },
+            "feather": 0.06,
+            "u": "FW",
+            "fillStyle": "blush"
+          }
+        ],
+        "markers": [
+          {"id": "apple", "at": {"avg": ["R_CHEEK_1", "R_ZYGOMA"]}, "style": "target_dot"}
+        ]
+      },
+      "animation": {"type": "zone_pulse", "zoneIds": ["blush"], "demoRepeats": 2},
+      "pressure": "light",
+      "script": {
+        "title": "落在苹果肌最高处",
+        "voice": "先微笑一下，刷子落在最高的那一点，转两圈，再朝太阳穴扫开。边缘要自己消失。",
+        "tip": "中心看得出颜色就够了，不要扫到鼻翼。",
+        "commonMistakes": ["腮红贴到鼻翼", "画出一圈硬边"]
+      },
+      "estSeconds": 50,
+      "tracking": {"precision": "normal", "freezeOnBlink": false, "freezeOnOcclusion": true, "smoothing": "one_euro"}
+    },
+    {
+      "stepId": "s15_lips",
+      "title": "淡淡的唇",
+      "region": "lip",
+      "tool": "lipstick",
+      "toolLabel": "口红",
+      "side": "center",
+      "mirror": false,
+      "anchors": ["UPPER_LIP", "LOWER_LIP", "R_MOUTH", "L_MOUTH"],
+      "geometry": {
+        "zones": [
+          {
+            "id": "lip",
+            "contour": "lip_outer",
+            "holes": ["lip_inner"],
+            "feather": 0.012,
+            "u": "FW",
+            "fillStyle": "lip"
+          }
+        ],
+        "markers": [
+          {"id": "bow", "at": {"lm": "UPPER_LIP"}, "style": "target_dot"},
+          {"id": "lower", "at": {"lm": "LOWER_LIP"}, "style": "target_dot"}
+        ]
+      },
+      "animation": {"type": "marker_sequence", "markerIds": ["bow", "lower"], "demoRepeats": 2},
+      "pressure": "light",
+      "script": {
+        "title": "点在中间，再抿开",
+        "voice": "点在上下唇中间，抿一抿。牙齿露出来的地方不要涂到。边缘用指腹收一下。",
+        "tip": "这一层要透，唇纹还看得到。",
+        "commonMistakes": ["涂进嘴里", "唇线画得比嘴唇大一圈"]
+      },
+      "estSeconds": 40,
+      "tracking": {"precision": "normal", "freezeOnBlink": false, "freezeOnOcclusion": true, "smoothing": "one_euro"}
+    },
+    {
+      "stepId": "s08_brow_fill",
+      "title": "眉轻轻带一下",
+      "region": "brow",
+      "tool": "brow_pencil",
+      "toolLabel": "眉笔 · 轻",
+      "side": "both_sequential",
+      "mirror": true,
+      "anchors": ["R_BROW_INNER_DOWN", "R_BROW_PEAK", "R_BROW_OUTER_DOWN"],
+      "geometry": {
+        "markers": [
+          {"id": "head", "at": {"lm": "R_BROW_INNER_DOWN"}, "style": "target_dot"},
+          {"id": "peak", "at": {"lm": "R_BROW_PEAK"}, "style": "target_dot"},
+          {"id": "tail", "at": {"lm": "R_BROW_OUTER_DOWN"}, "style": "target_dot"}
+        ]
+      },
+      "animation": {"type": "marker_sequence", "markerIds": ["head", "peak", "tail"], "demoRepeats": 1},
+      "pressure": "light",
+      "script": {
+        "title": "顺着原来的眉毛补几笔",
+        "voice": "眉头向上、笔触要淡，眉身短线顺着毛流，眉尾收到一个尖。不要涂成一块。",
+        "tip": "缺的地方补，已经有的颜色不要再压深。",
+        "commonMistakes": ["眉头画成一个方块", "两边高低不一样"]
+      },
+      "estSeconds": 50,
+      "tracking": {"precision": "normal", "freezeOnBlink": false, "freezeOnOcclusion": true, "smoothing": "one_euro"}
+    }
+  ]
+}
