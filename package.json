@@ -1,0 +1,21 @@
+{
+  "name": "makeup-camera",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build && node scripts/publish.mjs",
+    "typecheck": "tsc --noEmit",
+    "test:filter": "tsx scripts/stabilize-check.ts"
+  },
+  "dependencies": {
+    "earcut": "^3.0.2"
+  },
+  "devDependencies": {
+    "@types/earcut": "^3.0.0",
+    "puppeteer-core": "^24.15.0",
+    "tsx": "^4.20.3",
+    "typescript": "^5.9.2",
+    "vite": "^7.1.2"
+  }
+}
