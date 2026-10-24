@@ -1,4 +1,6 @@
-// WebGL2 pigment for the shared try-on path. The on/off control is a tap.
+// WebGL2 try-on. A feathered skin mask gets an edge-aware beauty pass
+// (separable bilateral blur of the photo, then a warm lift), then cheek,
+// lip, and highlight color is mixed in the shader so it follows the photo.
 // Masks are feathered in a shader, then multiplied or soft-lit onto the
 // camera frame already in the 2D view. Lips get a second softer pass plus
 // a pose-shifted gloss. Eyeliner is a dark core with a short feather so it
@@ -77,8 +79,8 @@ const DAILY: Recipe = {
   shadowOp: 0.28,
   deep: [0.42, 0.3, 0.28],
   deepOp: 0.2,
-  blush: [0.74, 0.45, 0.46],
-  blushOp: 0.14,
+  blush: [0.94, 0.42, 0.46],
+  blushOp: 0.42,
   hiOp: 0.08,
 };
 
@@ -95,8 +97,8 @@ const EVENING: Recipe = {
   shadowOp: 0.36,
   deep: [0.32, 0.2, 0.18],
   deepOp: 0.26,
-  blush: [0.66, 0.34, 0.38],
-  blushOp: 0.18,
+  blush: [0.9, 0.34, 0.4],
+  blushOp: 0.48,
   hiOp: 0.1,
 };
 
@@ -113,8 +115,8 @@ const BLUSH: Recipe = {
   shadowOp: 0.12,
   deep: [0.55, 0.36, 0.34],
   deepOp: 0.08,
-  blush: [0.9, 0.36, 0.42],
-  blushOp: 0.32,
+  blush: [0.95, 0.42, 0.48],
+  blushOp: 0.4,
   hiOp: 0.05,
 };
 
@@ -137,12 +139,19 @@ type Session = {
   combine: WebGLProgram;
   gloss: WebGLProgram;
   brush: WebGLProgram;
+  fusion: WebGLProgram;
+  rgbBlur: WebGLProgram;
   buf: WebGLBuffer;
   quad: WebGLBuffer;
   a: Target | null;
   b: Target | null;
   c: Target | null;
+  soft: Target | null;
   holeEmpty: WebGLTexture;
+  base: WebGLTexture | null;
+  baseW: number;
+  baseH: number;
+  scratch: HTMLCanvasElement | null;
 };
 
 type BBox = { x: number; y: number; w: number; h: number };
@@ -155,6 +164,7 @@ const GL_STYLES = new Set([
   "shadowDeep",
   "blush",
   "highlight",
+  "skin",
 ]);
 
 let session: Session | null | undefined;
@@ -328,6 +338,93 @@ void main() {
   o = vec4(uRgb, a);
 }`;
 
+const FUSION_FS = `#version 300 es
+precision highp float;
+uniform sampler2D uMask;
+uniform sampler2D uBase;
+uniform sampler2D uHole;
+uniform vec3 uRgb;
+uniform vec2 uTexel;
+uniform float uOpacity;
+uniform float uPower;
+uniform float uSoften;
+uniform float uLift;
+uniform float uMode;
+uniform float uLuma;
+uniform sampler2D uSoft;
+in vec2 vUv;
+out vec4 o;
+
+float softLight(float b, float s) {
+  return s <= 0.5
+    ? b - (1.0 - 2.0 * s) * b * (1.0 - b)
+    : b + (2.0 * s - 1.0) * (sqrt(max(b, 0.0)) - b);
+}
+vec3 softLight3(vec3 b, vec3 s) {
+  return vec3(softLight(b.r, s.r), softLight(b.g, s.g), softLight(b.b, s.b));
+}
+void main() {
+  vec3 src = texture(uBase, vUv).rgb;
+  vec3 soft = texture(uSoft, vUv).rgb;
+  float m = pow(clamp(texture(uMask, vUv).r, 0.0, 1.0), max(0.35, uPower));
+  m *= 1.0 - texture(uHole, vUv).r;
+  float luma = dot(src, vec3(0.2126, 0.7152, 0.0722));
+  float gate = 1.0;
+  if (uLuma > 0.5) {
+    float mid = smoothstep(0.05, 0.22, luma) * (1.0 - smoothstep(0.88, 0.99, luma));
+    gate = mix(0.62, 1.0, mid);
+  }
+  float a = clamp(m * uOpacity * gate, 0.0, 1.0);
+  vec3 color = src;
+  if (uMode < 0.5) {
+    float detail = length(src - soft);
+    float keep = smoothstep(0.018, 0.12, detail);
+    float softenAmt = clamp(uSoften, 0.0, 1.0) * a * (1.0 - 0.75 * keep);
+    color = mix(src, soft, softenAmt);
+    vec3 lifted = min(vec3(1.0), color + vec3(0.070, 0.042, 0.022));
+    color = mix(color, lifted, clamp(uLift, 0.0, 1.0) * a);
+  } else if (uMode < 1.5) {
+    color = mix(src, softLight3(src, uRgb), a);
+  } else if (uMode < 2.5) {
+    color = mix(src, src * uRgb, a);
+  } else {
+    color = mix(src, 1.0 - (1.0 - src) * (1.0 - uRgb), a);
+  }
+  o = vec4(color, 1.0);
+}`;
+
+const RGB_BLUR_FS = `#version 300 es
+precision highp float;
+uniform sampler2D uTex;
+uniform sampler2D uOrig;
+uniform vec2 uTexel;
+uniform vec2 uDir;
+uniform float uRadius;
+in vec2 vUv;
+out vec4 o;
+void main() {
+  vec3 center = texture(uOrig, vUv).rgb;
+  float sigma = max(1.0, uRadius * 0.5);
+  float range2 = 0.11 * 0.11;
+  vec3 sum = vec3(0.0);
+  float wsum = 0.0;
+  int R = int(min(16.0, ceil(uRadius)));
+  for (int i = -16; i <= 16; i++) {
+    if (abs(i) > R) continue;
+    float x = float(i);
+    vec2 uv = vUv + uDir * uTexel * x;
+    vec3 c = texture(uTex, uv).rgb;
+    vec3 ref = texture(uOrig, uv).rgb;
+    vec3 d = ref - center;
+    float spatial = exp(-0.5 * (x * x) / (sigma * sigma));
+    float range = exp(-dot(d, d) / (2.0 * range2));
+    float w = spatial * range;
+    sum += c * w;
+    wsum += w;
+  }
+  o = vec4(sum / max(1e-4, wsum), 1.0);
+}`;
+
 const BRUSH_VS = `#version 300 es
 layout(location=0) in vec2 aPos;
 uniform vec2 uOrigin;
@@ -401,10 +498,12 @@ function getSession(): Session | null {
   const combine = program(gl, QUAD_VS, COMBINE_FS);
   const gloss = program(gl, QUAD_VS, GLOSS_FS);
   const brush = program(gl, BRUSH_VS, BRUSH_FS);
+  const fusion = program(gl, QUAD_VS, FUSION_FS);
+  const rgbBlur = program(gl, QUAD_VS, RGB_BLUR_FS);
   const buf = gl.createBuffer();
   const quad = gl.createBuffer();
   const holeEmpty = gl.createTexture();
-  if (!mesh || !line || !blur || !combine || !gloss || !brush || !buf || !quad || !holeEmpty) {
+  if (!mesh || !line || !blur || !combine || !gloss || !brush || !fusion || !rgbBlur || !buf || !quad || !holeEmpty) {
     return fail("WebGL2 program link failed");
   }
   gl.bindTexture(gl.TEXTURE_2D, holeEmpty);
@@ -432,12 +531,19 @@ function getSession(): Session | null {
     combine,
     gloss,
     brush,
+    fusion,
+    rgbBlur,
     buf,
     quad,
     a: null,
     b: null,
     c: null,
+    soft: null,
     holeEmpty,
+    base: null,
+    baseW: 0,
+    baseH: 0,
+    scratch: null,
   };
   return session;
 }
@@ -655,6 +761,43 @@ function blurInto(s: Session, radiusPx: number): void {
   blurPass(s, s.b, s.a, { x: 0, y: 1 }, radiusPx);
 }
 
+function rgbBlurPass(
+  s: Session,
+  src: WebGLTexture,
+  dst: Target,
+  dir: Pt,
+  radiusPx: number,
+  srcW: number,
+  srcH: number,
+  orig: WebGLTexture,
+): void {
+  const gl = s.gl;
+  bindTarget(gl, dst);
+  clear(gl);
+  gl.disable(gl.BLEND);
+  gl.useProgram(s.rgbBlur);
+  gl.bindBuffer(gl.ARRAY_BUFFER, s.quad);
+  gl.enableVertexAttribArray(0);
+  gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+  gl.activeTexture(gl.TEXTURE0);
+  gl.bindTexture(gl.TEXTURE_2D, src);
+  gl.activeTexture(gl.TEXTURE1);
+  gl.bindTexture(gl.TEXTURE_2D, orig);
+  gl.uniform1i(loc(gl, s.rgbBlur, "uTex"), 0);
+  gl.uniform1i(loc(gl, s.rgbBlur, "uOrig"), 1);
+  gl.uniform2f(loc(gl, s.rgbBlur, "uTexel"), 1 / srcW, 1 / srcH);
+  gl.uniform2f(loc(gl, s.rgbBlur, "uDir"), dir.x, dir.y);
+  gl.uniform1f(loc(gl, s.rgbBlur, "uRadius"), radiusPx);
+  gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+}
+
+function softBase(s: Session, radiusPx: number): WebGLTexture | null {
+  if (!s.base || !s.b || !s.soft || radiusPx < 0.8) return s.base;
+  rgbBlurPass(s, s.base, s.b, { x: 1, y: 0 }, radiusPx, s.baseW, s.baseH, s.base);
+  rgbBlurPass(s, s.b.tex, s.soft, { x: 0, y: 1 }, radiusPx, s.b.w, s.b.h, s.base);
+  return s.soft.tex;
+}
+
 function present(
   s: Session,
   ctx: CanvasRenderingContext2D,
@@ -694,13 +837,106 @@ function present(
   ctx.restore();
 }
 
+function ensureBase(s: Session, w: number, h: number): WebGLTexture | null {
+  const gl = s.gl;
+  if (s.base && s.baseW === w && s.baseH === h) return s.base;
+  if (s.base) gl.deleteTexture(s.base);
+  const tex = gl.createTexture();
+  if (!tex) return null;
+  gl.bindTexture(gl.TEXTURE_2D, tex);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  s.base = tex;
+  s.baseW = w;
+  s.baseH = h;
+  return tex;
+}
+
+function uploadBase(s: Session, ctx: CanvasRenderingContext2D, box: BBox): boolean {
+  const src = ctx.canvas as HTMLCanvasElement;
+  const m = ctx.getTransform();
+  const x = box.x * m.a + box.y * m.c + m.e;
+  const y = box.x * m.b + box.y * m.d + m.f;
+  const w = box.w * m.a + box.h * m.c;
+  const h = box.w * m.b + box.h * m.d;
+  if (w < 2 || h < 2 || !s.a) return false;
+  if (!s.scratch) s.scratch = document.createElement("canvas");
+  const scratch = s.scratch;
+  scratch.width = s.canvas.width;
+  scratch.height = s.canvas.height;
+  const g = scratch.getContext("2d");
+  if (!g) return false;
+  g.setTransform(1, 0, 0, 1, 0, 0);
+  g.clearRect(0, 0, scratch.width, scratch.height);
+  g.drawImage(src, x, y, w, h, 0, 0, scratch.width, scratch.height);
+  const tex = ensureBase(s, scratch.width, scratch.height);
+  if (!tex) return false;
+  const gl = s.gl;
+  gl.bindTexture(gl.TEXTURE_2D, tex);
+  gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, 1);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, scratch);
+  gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, 0);
+  return true;
+}
+
+function fuse(
+  s: Session,
+  ctx: CanvasRenderingContext2D,
+  box: BBox,
+  rgb: Rgb,
+  opacity: number,
+  opts: { mode: number; power: number; soften: number; lift: number; luma: boolean; blur: number },
+  hole: WebGLTexture | null = null,
+): void {
+  const gl = s.gl;
+  if (!s.a || opacity < 0.004 || !uploadBase(s, ctx, box) || !s.base) return;
+  const soft = opts.soften > 0.001 ? softBase(s, opts.blur) : s.base;
+  gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+  gl.viewport(0, 0, s.canvas.width, s.canvas.height);
+  clear(gl);
+  gl.disable(gl.BLEND);
+  gl.useProgram(s.fusion);
+  gl.bindBuffer(gl.ARRAY_BUFFER, s.quad);
+  gl.enableVertexAttribArray(0);
+  gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+  gl.activeTexture(gl.TEXTURE0);
+  gl.bindTexture(gl.TEXTURE_2D, s.a.tex);
+  gl.activeTexture(gl.TEXTURE1);
+  gl.bindTexture(gl.TEXTURE_2D, s.base);
+  gl.activeTexture(gl.TEXTURE2);
+  gl.bindTexture(gl.TEXTURE_2D, hole ?? s.holeEmpty);
+  gl.activeTexture(gl.TEXTURE3);
+  gl.bindTexture(gl.TEXTURE_2D, soft ?? s.base);
+  gl.uniform1i(loc(gl, s.fusion, "uMask"), 0);
+  gl.uniform1i(loc(gl, s.fusion, "uBase"), 1);
+  gl.uniform1i(loc(gl, s.fusion, "uHole"), 2);
+  gl.uniform1i(loc(gl, s.fusion, "uSoft"), 3);
+  gl.uniform3f(loc(gl, s.fusion, "uRgb"), rgb[0], rgb[1], rgb[2]);
+  gl.uniform2f(loc(gl, s.fusion, "uTexel"), 1 / s.canvas.width, 1 / s.canvas.height);
+  gl.uniform1f(loc(gl, s.fusion, "uOpacity"), opacity);
+  gl.uniform1f(loc(gl, s.fusion, "uPower"), opts.power);
+  gl.uniform1f(loc(gl, s.fusion, "uSoften"), opts.soften);
+  gl.uniform1f(loc(gl, s.fusion, "uLift"), opts.lift);
+  gl.uniform1f(loc(gl, s.fusion, "uMode"), opts.mode);
+  gl.uniform1f(loc(gl, s.fusion, "uLuma"), opts.luma ? 1 : 0);
+  gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+  gl.flush();
+  ctx.save();
+  ctx.globalCompositeOperation = "source-over";
+  ctx.drawImage(s.canvas, box.x, box.y, box.w, box.h);
+  ctx.restore();
+}
+
 function prepare(s: Session, pw: number, ph: number): boolean {
   s.canvas.width = pw;
   s.canvas.height = ph;
   s.a = resizeTarget(s.gl, s.a, pw, ph);
   s.b = resizeTarget(s.gl, s.b, pw, ph);
   s.c = resizeTarget(s.gl, s.c, pw, ph);
-  return !!(s.a && s.b && s.c);
+  s.soft = resizeTarget(s.gl, s.soft, pw, ph);
+  return !!(s.a && s.b && s.c && s.soft);
 }
 
 function beginMask(s: Session): void {
@@ -759,6 +995,93 @@ function loc(gl: GL, program: WebGLProgram, name: string): WebGLUniformLocation 
 
 let paintedLook = "";
 
+function growLoop(points: Pt[], k: number): Pt[] {
+  if (points.length < 3) return points;
+  let cx = 0;
+  let cy = 0;
+  for (const p of points) {
+    cx += p.x;
+    cy += p.y;
+  }
+  cx /= points.length;
+  cy /= points.length;
+  return points.map((p) => ({ x: cx + (p.x - cx) * k, y: cy + (p.y - cy) * k }));
+}
+
+function drawSkin(
+  s: Session,
+  ctx: CanvasRenderingContext2D,
+  map: GlMap,
+  layer: GlLayer,
+  tone: number,
+): boolean {
+  const fills = layer.fills.filter((f) => f.points.length >= 8 && f.alpha > 0.02);
+  if (!fills.length) return true;
+  let box: BBox | null = null;
+  const mapped: { points: Pt[]; holes: Pt[][]; alpha: number }[] = [];
+  for (const f of fills) {
+    const points = f.points.map((p) => mapPt(map, p));
+    const holes = (f.holes ?? []).map((h, i) =>
+      growLoop(h.map((p) => mapPt(map, p)), i < 2 ? 1.34 : i < 4 ? 1.08 : 1.18),
+    );
+    for (const p of points) box = expand(box, p.x, p.y, 18);
+    mapped.push({ points, holes, alpha: f.alpha });
+  }
+  if (!box) return true;
+  const size = pixelSize(ctx, box);
+  if (!size || !prepare(s, size.pw, size.ph)) return false;
+  const origin = { x: box.x, y: box.y };
+  const span = { x: box.w, y: box.h };
+  beginMask(s);
+  let any = false;
+  for (const fill of mapped) {
+    const tri = triangulate(fill.points, fill.holes);
+    if (!tri) continue;
+    any = true;
+    drawMesh(s, origin, span, tri);
+  }
+  if (!any) return false;
+  s.gl.blendEquation(s.gl.FUNC_ADD);
+  s.gl.disable(s.gl.BLEND);
+  blurInto(s, Math.max(10, Math.min(26, size.pw * 0.04)));
+  let holeTex: WebGLTexture | null = null;
+  const holePts = mapped.flatMap((f) => f.holes);
+  if (holePts.length && s.c && s.b) {
+    bindTarget(s.gl, s.c);
+    clear(s.gl);
+    s.gl.enable(s.gl.BLEND);
+    s.gl.blendEquation(s.gl.MAX);
+    s.gl.blendFunc(s.gl.ONE, s.gl.ONE);
+    for (const hole of holePts) {
+      const ht = triangulate(hole, []);
+      if (ht) drawMesh(s, origin, span, ht);
+    }
+    s.gl.disable(s.gl.BLEND);
+    blurPass(s, s.c, s.b, { x: 1, y: 0 }, Math.max(3, size.pw * 0.012));
+    blurPass(s, s.b, s.c, { x: 0, y: 1 }, Math.max(3, size.pw * 0.012));
+    holeTex = s.c.tex;
+  }
+  const alpha = Math.max(...mapped.map((f) => f.alpha)) * tone;
+  fuse(
+    s,
+    ctx,
+    box,
+    [1, 0.97, 0.94],
+    Math.min(1, alpha),
+    {
+      mode: 0,
+      power: 1.04,
+      soften: 0.82,
+      lift: 0.78,
+      luma: true,
+      blur: Math.max(14, Math.min(16, size.pw * 0.03)),
+    },
+    holeTex,
+  );
+  remember("skin");
+  return true;
+}
+
 export function renderGlPigment(
   ctx: CanvasRenderingContext2D,
   state: GlState,
@@ -779,6 +1102,7 @@ export function renderGlPigment(
     if (layer.style === "liner" || layer.style === "lash") {
       return drawLineLayer(s, ctx, map, layer, tone, state);
     }
+    if (layer.style === "skin") return drawSkin(s, ctx, map, layer, tone);
     if (layer.style === "blush" || layer.style === "highlight") {
       return drawBrushLayer(s, ctx, map, layer, tone, state);
     }
@@ -867,8 +1191,24 @@ function drawLip(
   const alpha = Math.max(...mapped.map((f) => f.alpha));
   const scale = Math.max(0.7, Math.min(1.2, alpha / 0.6)) * tone;
   const rec = recipe(state.look);
-  present(s, ctx, box, rec.lip, Math.min(0.55, rec.lipOp * scale), 1.4, 0.06, "multiply", holeTex);
-  present(s, ctx, box, rec.lipSoft, Math.min(0.22, rec.lipSoftOp * scale), 1.6, 0, "soft-light", holeTex);
+  fuse(
+    s,
+    ctx,
+    box,
+    rec.lip,
+    Math.min(0.4, rec.lipOp * scale),
+    { mode: 2, power: 1.35, soften: 0, lift: 0, luma: true, blur: 1 },
+    holeTex,
+  );
+  fuse(
+    s,
+    ctx,
+    box,
+    rec.lipSoft,
+    Math.min(0.16, rec.lipSoftOp * scale),
+    { mode: 1, power: 1.55, soften: 0, lift: 0, luma: true, blur: 1 },
+    holeTex,
+  );
   const holePts = mapped.flatMap((f) => f.holes.flat());
   drawLipGloss(s, ctx, state, box, mapped[0].points, holePts, holeTex, Math.min(0.28, rec.gloss * scale), rec.glossRgb);
   remember("lip");
@@ -1175,11 +1515,35 @@ function drawBrushLayer(
     const deep = layer.style === "shadowDeep";
     const shadow = layer.style === "shadow" || deep;
     const rec = recipe(state.look);
-    const rgb: Rgb = hi ? [1, 0.96, 0.93] : deep ? rec.deep : shadow ? rec.shadow : rec.blush;
-    const mode: GlobalCompositeOperation = hi ? "soft-light" : "multiply";
-    const cap = hi ? rec.hiOp : deep ? rec.deepOp : shadow ? rec.shadowOp : rec.blushOp;
-    const gain = hi ? 0.5 : shadow ? 0.9 : 0.75;
-    present(s, ctx, box, rgb, Math.min(cap, brush.alpha * tone * gain), shadow ? 1.02 : 1.05, 0, mode, null);
+    const rgb: Rgb = hi ? [1, 0.97, 0.94] : deep ? rec.deep : shadow ? rec.shadow : rec.blush;
+    if (hi) {
+      fuse(s, ctx, box, rgb, Math.min(rec.hiOp, brush.alpha * tone * 0.35), {
+        mode: 3,
+        power: 0.85,
+        soften: 0,
+        lift: 0,
+        luma: true,
+        blur: 1,
+      });
+    } else if (!shadow) {
+      fuse(s, ctx, box, rgb, Math.min(rec.blushOp, brush.alpha * tone * 0.7), {
+        mode: 1,
+        power: 0.7,
+        soften: 0,
+        lift: 0,
+        luma: true,
+        blur: 1,
+      });
+    } else {
+      fuse(s, ctx, box, rgb, Math.min(0.06, (deep ? rec.deepOp : rec.shadowOp) * brush.alpha * 0.12), {
+        mode: 1,
+        power: 1.4,
+        soften: 0,
+        lift: 0,
+        luma: true,
+        blur: 1,
+      });
+    }
     any = true;
   }
   if (any) remember(layer.style);

@@ -131,7 +131,7 @@ await waitReady(page);
 let state = await snap(page);
 console.log("brow", JSON.stringify(state));
 if (state.lookId !== "natural_brow_v1" || state.kind !== "soft") fail("brow id", state);
-if (!state.styles.length || state.styles.some((s) => s !== "brow")) fail("brow styles", state);
+if (!state.styles.includes("brow") || state.styles.some((s) => s !== "brow" && s !== "skin")) fail("brow styles", state);
 if (!state.kicker.includes("自然眉")) fail("brow title", state);
 if (!state.effect || state.pressed !== "true" || state.hold !== "关闭效果") fail("brow toggle on", state);
 if (state.frame.frameH <= state.frame.frameW) fail("brow frame portrait", state);
@@ -142,7 +142,7 @@ await page.waitForFunction(() => window.__makeup.effectOn === false && window.__
 state = await snap(page);
 console.log("brow off", JSON.stringify({ effect: state.effect, alpha: state.alpha, hold: state.hold, pressed: state.pressed, styles: state.styles }));
 if (state.hold !== "看效果" || state.pressed !== "false") fail("toggle off label", state);
-if (state.styles.some((s) => s !== "brow")) fail("toggle off kept brow look", state);
+if (state.styles.some((s) => s !== "brow" && s !== "skin")) fail("toggle off kept brow look", state);
 
 await page.click("#hold");
 await page.waitForFunction(() => window.__makeup.effectOn === true && window.__makeup.previewAlpha === 1);
@@ -153,9 +153,11 @@ await page.waitForFunction(() => {
   return (
     window.__makeup.lookId === "daily_commute_v1" &&
     window.__makeup.lookKind === "daily" &&
-    s.includes("shadow") &&
+    s.includes("brow") &&
+    s.includes("skin") &&
     s.includes("lip") &&
     s.includes("blush") &&
+    !s.includes("shadow") &&
     !s.includes("highlight")
   );
 });
@@ -169,10 +171,12 @@ await page.waitForFunction(() => {
   return (
     window.__makeup.lookId === "evening_glam_v1" &&
     window.__makeup.lookKind === "evening" &&
+    s.includes("brow") &&
+    s.includes("skin") &&
     s.includes("highlight") &&
-    s.includes("shadow") &&
+    s.includes("blush") &&
     s.includes("lip") &&
-    !s.every((x) => x === "brow")
+    !s.includes("shadow")
   );
 });
 state = await snap(page);
@@ -185,6 +189,8 @@ await page.waitForFunction(() => {
   return (
     window.__makeup.lookId === "vitality_blush_v1" &&
     window.__makeup.lookKind === "blush" &&
+    s.includes("brow") &&
+    s.includes("skin") &&
     s.includes("blush") &&
     s.includes("lip") &&
     !s.includes("shadow") &&
@@ -206,7 +212,8 @@ await page.waitForFunction(() => {
     window.__makeup.effectOn === true &&
     window.__makeup.previewAlpha === 1 &&
     s.length > 0 &&
-    s.every((x) => x === "brow")
+    s.includes("brow") &&
+    s.every((x) => x === "brow" || x === "skin")
   );
 });
 state = await snap(page);
@@ -229,8 +236,10 @@ await side.waitForFunction(
     window.__makeup.frame.videoWidth > window.__makeup.frame.videoHeight &&
     window.__makeup.frame.frameH > window.__makeup.frame.frameW &&
     window.__makeup.lookId === "daily_commute_v1" &&
+    window.__makeup.pigmentStyles.includes("brow") &&
     window.__makeup.pigmentStyles.includes("lip") &&
-    window.__makeup.pigmentStyles.includes("shadow") &&
+    window.__makeup.pigmentStyles.includes("blush") &&
+    !window.__makeup.pigmentStyles.includes("shadow") &&
     !window.__makeup.pigmentStyles.includes("highlight"),
   { timeout: 25000 },
 );
