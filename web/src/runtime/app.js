@@ -10925,22 +10925,30 @@ function m0(t) {
         : "daily";
 }
 function softLiner(t, e, gain) {
-  const r = zs(t, e);
-  if (r.length < 4) return Re();
-  const s = [],
-    parts = 5;
-  for (let i = 0; i < parts; i++) {
-    const a0 = i / parts,
-      pts = yn(r, a0, (i + 1) / parts);
-    if (pts.length < 2) continue;
-    const fade = Math.pow(1 - a0, 1.35);
-    s.push({
-      points: pts,
-      alpha: 0.82 * gain * fade,
-      widthImg: t.fw * (0.00085 * fade + 0.00028),
-    });
-  }
-  return _e({ style: "liner", fills: [], hairs: [], lines: s, brushes: [] });
+  const lid = zs(t, e);
+  if (lid.length < 4) return Re();
+  const dense = Vo(lid, 4);
+  const lower = bt(t, "R_EYE_LOWER_MID", e);
+  const mid = lid[(lid.length / 2) | 0];
+  const into = lower.sub(mid);
+  const tuck =
+    into.len() < 1
+      ? new q(0, 0)
+      : into.norm().mul(Math.min(t.fw * 0.003, into.len() * 0.1));
+  const pts = dense.map((p) => p.add(tuck));
+  return _e({
+    style: "liner",
+    fills: [],
+    hairs: [],
+    lines: [
+      {
+        points: pts,
+        alpha: Math.min(1, 0.96 * gain),
+        widthImg: t.fw * 0.0042,
+      },
+    ],
+    brushes: [],
+  });
 }
 function g0(t, e) {
   const n = new Tr(t),
@@ -13545,6 +13553,18 @@ const zf = {
   get noseLagPx() {
     if (!lastRawPx || !lastFiltPx || !lastRawPx[1] || !lastFiltPx[1]) return null;
     return Math.hypot(lastRawPx[1].x - lastFiltPx[1].x, lastRawPx[1].y - lastFiltPx[1].y);
+  },
+  get trackLagPx() {
+    if (!lastRawPx || !lastFiltPx) return null;
+    const ids = [33, 263, 159, 386, 70, 300, 13, 1, 50, 280];
+    const out = {};
+    for (const i of ids) {
+      const a = lastRawPx[i],
+        b = lastFiltPx[i];
+      if (!a || !b) continue;
+      out[i] = Math.hypot(a.x - b.x, a.y - b.y);
+    }
+    return out;
   },
   get strokes() {
     return (C == null ? void 0 : C.strokes.length) ?? 0;

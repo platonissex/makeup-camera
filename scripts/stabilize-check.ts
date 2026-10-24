@@ -94,14 +94,29 @@ const shear = Math.hypot(err33.x - err263.x, err33.y - err263.y);
 const settledErr = settledErrs.reduce((a, b) => a + b, 0) / Math.max(1, settledErrs.length);
 const mouthAmp = mouthMax - mouthMin;
 
-const report = { lag33, lag263, shear, settledErr, mouthAmp };
+const jumpStab = new LandmarkStabilizer(478, { minCutoff: 1.5, beta: 0.09, dCutoff: 1 });
+let jumpErr = 0;
+for (let frame = 0; frame <= 4; frame++) {
+  const { raw } = sample(frame, false);
+  jumpStab.smooth(raw, frame / 30);
+}
+{
+  const { raw } = sample(4, false);
+  const popped = raw.map((p) => ({ x: p.x + 40, y: p.y - 18 }));
+  const out = jumpStab.smooth(popped, 5 / 30);
+  jumpErr = Math.max(dist(out[33], popped[33]), dist(out[1], popped[1]), dist(out[13], popped[13]));
+}
+
+const report = { lag33, lag263, shear, settledErr, mouthAmp, jumpErr };
 console.log(JSON.stringify(report, null, 2));
 
 const problems: string[] = [];
-if (lag33 > 8) problems.push(`eye lag ${lag33.toFixed(2)}px during the turn`);
-if (shear > 3) problems.push(`anchors sheared ${shear.toFixed(2)}px`);
-if (settledErr > 2.6) problems.push(`settled anchor error ${settledErr.toFixed(2)}px`);
-if (mouthAmp < 5) problems.push(`mouth amplitude collapsed to ${mouthAmp.toFixed(2)}px`);
+if (lag33 > 3.2) problems.push(`eye lag ${lag33.toFixed(2)}px at the end of the turn`);
+if (lag263 > 3.2) problems.push(`outer eye lag ${lag263.toFixed(2)}px at the end of the turn`);
+if (shear > 2.4) problems.push(`anchors sheared ${shear.toFixed(2)}px`);
+if (settledErr > 2.8) problems.push(`settled anchor error ${settledErr.toFixed(2)}px`);
+if (mouthAmp < 6) problems.push(`mouth amplitude collapsed to ${mouthAmp.toFixed(2)}px`);
+if (jumpErr > 1.5) problems.push(`40px pop still trailing by ${jumpErr.toFixed(2)}px`);
 if (problems.length) {
   throw new Error(problems.join("\n"));
 }

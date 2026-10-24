@@ -1,9 +1,10 @@
 // Rigid pose + expression residuals.
-// Independent One Euro on every landmark lags as a block when the head
-// turns (the mask swims) and still jitters relative to itself. Here the
-// similarity that carries the head (eyes, nose bridge, forehead, cheeks)
-// is filtered quickly, and each point's leftover motion is filtered on
-// its own so talk and blinks stay put without dragging the whole mask.
+// The similarity that carries the head is smoothed as one pose, with the
+// same blend on scale, rotation, and translation so a turn cannot leave
+// the eyes a frame behind the nose. Leftover expression (blink, talk) is
+// filtered per point with the same settings on every landmark, so brows,
+// liner, and lips stay painted on the same frame. A large jump snaps to
+// the new pose instead of easing in over the next turns.
 
 export type Vec = { x: number; y: number };
 
@@ -17,12 +18,6 @@ export const SMOOTHING_NAME = "rigid-residual-one-euro";
 
 const RIGID_INDEX = [33, 263, 133, 362, 6, 168, 10, 151, 234, 454, 1];
 const RIGID_WEIGHT = [1, 1, 1, 1, 1, 0.9, 0.75, 0.7, 0.65, 0.65, 0.35];
-
-const LIP = new Set<number>([
-  61, 185, 40, 39, 37, 0, 267, 269, 270, 409, 291, 375, 321, 405, 314, 17, 84,
-  181, 91, 146, 78, 191, 80, 81, 82, 13, 312, 311, 310, 415, 308, 324, 318, 402,
-  317, 14, 87, 178, 88, 95,
-]);
 
 type Sim = { a: number; b: number; tx: number; ty: number };
 
@@ -155,56 +150,76 @@ function clone(points: Vec[]): Vec[] {
   return points.map((p) => ({ x: p.x, y: p.y }));
 }
 
+function poseAlpha(dt: number, speedPx: number): number {
+  // Below ~16 px/s is detector noise. Above that, open the pose filter so a
+  // turn lands on this frame instead of trailing the face.
+  const cutoff = 1.8 + 0.55 * Math.max(0, speedPx - 16);
+  return alpha(dt, Math.min(48, cutoff));
+}
+
 export class LandmarkStabilizer {
   private readonly count: number;
   private readonly residual: EuroParams;
   private ref: Vec[] | null = null;
   private tSeen: number | null = null;
+  private prevRaw: Sim | null = null;
+  private prevSim: Sim | null = null;
   private rx: OneEuroFilter[] = [];
   private ry: OneEuroFilter[] = [];
-  private simF = {
-    a: new OneEuroFilter(1.7, 1.8, 7),
-    b: new OneEuroFilter(1.7, 1.8, 7),
-    tx: new OneEuroFilter(1.7, 1.8, 7),
-    ty: new OneEuroFilter(1.7, 1.8, 7),
-  };
 
   constructor(count: number, residual: EuroParams) {
     this.count = count;
+    // Every landmark uses the same residual. A slower filter on the lids
+    // than on the lips is what made one layer slide off the others.
     this.residual = {
-      minCutoff: residual.minCutoff,
-      beta: residual.beta,
-      dCutoff: Math.max(1.6, residual.dCutoff),
+      minCutoff: Math.max(2.8, residual.minCutoff),
+      beta: Math.max(1.15, residual.beta),
+      dCutoff: Math.max(6, residual.dCutoff),
     };
     this.alloc();
   }
 
   private alloc(): void {
-    const base = this.residual;
+    const p = this.residual;
     this.rx = [];
     this.ry = [];
     for (let i = 0; i < this.count; i++) {
-      const lip = LIP.has(i);
-      const minCutoff = lip ? base.minCutoff * 1.45 : base.minCutoff;
-      const beta = lip ? Math.max(0.55, base.beta * 4) : base.beta;
-      const dCutoff = lip ? Math.max(2.4, base.dCutoff) : base.dCutoff;
-      this.rx.push(new OneEuroFilter(minCutoff, beta, dCutoff));
-      this.ry.push(new OneEuroFilter(minCutoff, beta, dCutoff));
+      this.rx.push(new OneEuroFilter(p.minCutoff, p.beta, p.dCutoff));
+      this.ry.push(new OneEuroFilter(p.minCutoff, p.beta, p.dCutoff));
     }
   }
 
   reset(): void {
     this.ref = null;
-    this.simF.a.reset();
-    this.simF.b.reset();
-    this.simF.tx.reset();
-    this.simF.ty.reset();
+    this.prevRaw = null;
+    this.prevSim = null;
+    for (const f of this.rx) f.reset();
+    for (const f of this.ry) f.reset();
+  }
+
+  private poseTravel(from: Sim, to: Sim): number {
+    if (!this.ref) return 0;
+    let sum = 0;
+    let n = 0;
+    for (let k = 0; k < RIGID_INDEX.length; k++) {
+      const p = this.ref[RIGID_INDEX[k]];
+      if (!p) continue;
+      const a = applySim(from, p);
+      const b = applySim(to, p);
+      sum += Math.hypot(a.x - b.x, a.y - b.y);
+      n++;
+    }
+    return n ? sum / n : 0;
+  }
+
+  private snapResiduals(): void {
     for (const f of this.rx) f.reset();
     for (const f of this.ry) f.reset();
   }
 
   smooth(points: Vec[], tSeconds: number): Vec[] {
     if (this.tSeen !== null && tSeconds - this.tSeen > 0.45) this.reset();
+    const prevT = this.tSeen;
     this.tSeen = tSeconds;
     if (points.length !== this.count) {
       this.reset();
@@ -212,15 +227,33 @@ export class LandmarkStabilizer {
     }
     if (!this.ref) {
       this.ref = clone(points);
+      this.prevRaw = IDENTITY;
+      this.prevSim = IDENTITY;
       return clone(points);
     }
     const raw = fitSimilarity(this.ref, points) ?? IDENTITY;
+    const dt = prevT === null ? 1 / 30 : Math.max(1e-4, tSeconds - prevT);
+    const jump = this.prevRaw ? this.poseTravel(this.prevRaw, raw) : 0;
+    const behind = this.prevSim ? this.poseTravel(this.prevSim, raw) : 0;
+    // A detection pop, or a pose that has fallen more than a lid-width
+    // behind, takes the raw frame now. Creeping back is the stutter.
+    if (jump > 22 || behind > 12) {
+      this.snapResiduals();
+      this.prevRaw = raw;
+      this.prevSim = raw;
+      return clone(points);
+    }
+    const speed = jump / dt;
+    const blend = poseAlpha(dt, speed);
+    const prev = this.prevSim ?? raw;
     const sim: Sim = {
-      a: this.simF.a.filter(raw.a, tSeconds),
-      b: this.simF.b.filter(raw.b, tSeconds),
-      tx: this.simF.tx.filter(raw.tx, tSeconds),
-      ty: this.simF.ty.filter(raw.ty, tSeconds),
+      a: prev.a + (raw.a - prev.a) * blend,
+      b: prev.b + (raw.b - prev.b) * blend,
+      tx: prev.tx + (raw.tx - prev.tx) * blend,
+      ty: prev.ty + (raw.ty - prev.ty) * blend,
     };
+    this.prevRaw = raw;
+    this.prevSim = sim;
     const inv = invertSim(raw);
     const out: Vec[] = new Array(points.length);
     for (let i = 0; i < points.length; i++) {

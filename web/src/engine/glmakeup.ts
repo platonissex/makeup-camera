@@ -204,11 +204,14 @@ void main() { o = vec4(1.0); }`;
 const LINE_VS = `#version 300 es
 layout(location=0) in vec2 aPos;
 layout(location=1) in float aSide;
+layout(location=2) in float aAlong;
 uniform vec2 uOrigin;
 uniform vec2 uSize;
 out float vSide;
+out float vAlong;
 void main() {
   vSide = aSide;
+  vAlong = aAlong;
   vec2 p = (aPos - uOrigin) / uSize;
   gl_Position = vec4(p.x * 2.0 - 1.0, 1.0 - p.y * 2.0, 0.0, 1.0);
 }`;
@@ -216,13 +219,20 @@ void main() {
 const LINE_FS = `#version 300 es
 precision highp float;
 in float vSide;
+in float vAlong;
 uniform float uFeather;
 uniform float uAlpha;
+uniform float uTaper;
 out vec4 o;
 void main() {
   float d = abs(vSide);
-  float a = (1.0 - smoothstep(1.0 - uFeather, 1.0, d)) * uAlpha;
-  o = vec4(a);
+  float edge = 1.0 - smoothstep(1.0 - uFeather, 1.0, d);
+  float taper = 1.0;
+  if (uTaper > 0.5) {
+    taper *= smoothstep(0.0, 0.07, vAlong);
+    taper *= 1.0 - smoothstep(0.64, 1.0, vAlong);
+  }
+  o = vec4(edge * uAlpha * taper);
 }`;
 
 const QUAD_VS = `#version 300 es
@@ -453,43 +463,92 @@ function triangulate(outer: Pt[], holes: Pt[][]): Float32Array | null {
   return out;
 }
 
-function extrude(points: Pt[], radius: number): { xy: Float32Array; side: Float32Array } | null {
+function extrude(
+  points: Pt[],
+  radius: number,
+  taper: boolean,
+): { xy: Float32Array; side: Float32Array; along: Float32Array } | null {
   if (points.length < 2 || radius < 0.2) return null;
   const n = points.length;
-  const normals: Pt[] = [];
+  const cum = new Array<number>(n);
+  cum[0] = 0;
+  for (let i = 1; i < n; i++) {
+    cum[i] = cum[i - 1] + Math.hypot(points[i].x - points[i - 1].x, points[i].y - points[i - 1].y);
+  }
+  const total = Math.max(1e-4, cum[n - 1]);
+  const left: Pt[] = new Array(n);
+  const right: Pt[] = new Array(n);
+  const al = new Array<number>(n);
   for (let i = 0; i < n; i++) {
-    const prev = points[Math.max(0, i - 1)];
-    const next = points[Math.min(n - 1, i + 1)];
-    let tx = next.x - prev.x;
-    let ty = next.y - prev.y;
+    const i0 = Math.max(0, i - 1);
+    const i1 = Math.min(n - 1, i + 1);
+    let tx = points[i1].x - points[i0].x;
+    let ty = points[i1].y - points[i0].y;
     const len = Math.hypot(tx, ty) || 1;
     tx /= len;
     ty /= len;
-    normals.push({ x: -ty, y: tx });
+    let nx = -ty;
+    let ny = tx;
+    if (i > 0 && i < n - 1) {
+      let inx = points[i].x - points[i - 1].x;
+      let iny = points[i].y - points[i - 1].y;
+      let outx = points[i + 1].x - points[i].x;
+      let outy = points[i + 1].y - points[i].y;
+      const il = Math.hypot(inx, iny) || 1;
+      const ol = Math.hypot(outx, outy) || 1;
+      inx /= il;
+      iny /= il;
+      outx /= ol;
+      outy /= ol;
+      const n1x = -iny;
+      const n1y = inx;
+      const n2x = -outy;
+      const n2y = outx;
+      let mx = n1x + n2x;
+      let my = n1y + n2y;
+      const ml = Math.hypot(mx, my);
+      if (ml > 1e-4) {
+        mx /= ml;
+        my /= ml;
+        const denom = mx * n2x + my * n2y;
+        const miter = denom > 0.35 ? Math.min(2.1, 1 / denom) : 1;
+        nx = mx * miter;
+        ny = my * miter;
+      }
+    }
+    const along = cum[i] / total;
+    let rad = radius;
+    if (taper) {
+      const tip = along <= 0.64 ? 1 : Math.max(0.22, (1 - (along - 0.64) / 0.36) ** 1.2);
+      const root = along >= 0.045 ? 1 : 0.62 + (along / 0.045) * 0.38;
+      rad *= tip * root;
+    }
+    const p = points[i];
+    left[i] = { x: p.x + nx * rad, y: p.y + ny * rad };
+    right[i] = { x: p.x - nx * rad, y: p.y - ny * rad };
+    al[i] = along;
   }
   const xy: number[] = [];
   const side: number[] = [];
-  const push = (p: Pt, s: number) => {
+  const along: number[] = [];
+  const push = (p: Pt, s: number, a: number) => {
     xy.push(p.x, p.y);
     side.push(s);
+    along.push(a);
   };
   for (let i = 0; i < n - 1; i++) {
-    const a = points[i];
-    const b = points[i + 1];
-    const na = normals[i];
-    const nb = normals[i + 1];
-    const aL = { x: a.x + na.x * radius, y: a.y + na.y * radius };
-    const aR = { x: a.x - na.x * radius, y: a.y - na.y * radius };
-    const bL = { x: b.x + nb.x * radius, y: b.y + nb.y * radius };
-    const bR = { x: b.x - nb.x * radius, y: b.y - nb.y * radius };
-    push(aL, 1);
-    push(aR, -1);
-    push(bL, 1);
-    push(aR, -1);
-    push(bR, -1);
-    push(bL, 1);
+    push(left[i], 1, al[i]);
+    push(right[i], -1, al[i]);
+    push(left[i + 1], 1, al[i + 1]);
+    push(right[i], -1, al[i]);
+    push(right[i + 1], -1, al[i + 1]);
+    push(left[i + 1], 1, al[i + 1]);
   }
-  return { xy: new Float32Array(xy), side: new Float32Array(side) };
+  return {
+    xy: new Float32Array(xy),
+    side: new Float32Array(side),
+    along: new Float32Array(along),
+  };
 }
 
 function bindTarget(gl: GL, t: Target): void {
@@ -514,28 +573,43 @@ function drawMesh(s: Session, origin: Pt, size: Pt, xy: Float32Array): void {
   gl.drawArrays(gl.TRIANGLES, 0, xy.length / 2);
 }
 
-function drawLines(s: Session, origin: Pt, size: Pt, xy: Float32Array, side: Float32Array, feather: number, alpha = 1): void {
+function drawLines(
+  s: Session,
+  origin: Pt,
+  size: Pt,
+  xy: Float32Array,
+  side: Float32Array,
+  along: Float32Array,
+  feather: number,
+  alpha = 1,
+  taper = 0,
+): void {
   const gl = s.gl;
   gl.useProgram(s.line);
-  const inter = new Float32Array(xy.length + side.length);
   const n = side.length;
+  const inter = new Float32Array(n * 4);
   for (let i = 0; i < n; i++) {
-    inter[i * 3] = xy[i * 2];
-    inter[i * 3 + 1] = xy[i * 2 + 1];
-    inter[i * 3 + 2] = side[i];
+    inter[i * 4] = xy[i * 2];
+    inter[i * 4 + 1] = xy[i * 2 + 1];
+    inter[i * 4 + 2] = side[i];
+    inter[i * 4 + 3] = along[i];
   }
   gl.bindBuffer(gl.ARRAY_BUFFER, s.buf);
   gl.bufferData(gl.ARRAY_BUFFER, inter, gl.DYNAMIC_DRAW);
   gl.enableVertexAttribArray(0);
-  gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 12, 0);
+  gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 16, 0);
   gl.enableVertexAttribArray(1);
-  gl.vertexAttribPointer(1, 1, gl.FLOAT, false, 12, 8);
+  gl.vertexAttribPointer(1, 1, gl.FLOAT, false, 16, 8);
+  gl.enableVertexAttribArray(2);
+  gl.vertexAttribPointer(2, 1, gl.FLOAT, false, 16, 12);
   gl.uniform2f(gl.getUniformLocation(s.line, "uOrigin"), origin.x, origin.y);
   gl.uniform2f(gl.getUniformLocation(s.line, "uSize"), size.x, size.y);
   gl.uniform1f(gl.getUniformLocation(s.line, "uFeather"), feather);
   gl.uniform1f(gl.getUniformLocation(s.line, "uAlpha"), alpha);
+  gl.uniform1f(gl.getUniformLocation(s.line, "uTaper"), taper);
   gl.drawArrays(gl.TRIANGLES, 0, n);
   gl.disableVertexAttribArray(1);
+  gl.disableVertexAttribArray(2);
 }
 
 function blurPass(s: Session, src: Target, dst: Target, dir: Pt, radiusPx: number): void {
@@ -636,7 +710,7 @@ function axisCss(map: GlMap, origin: Pt, vec: Pt): Pt {
 
 function lineRadius(style: string, widthImg: number, map: GlMap): number {
   const w = map.mapLen(widthImg);
-  if (style === "liner") return Math.max(0.4, Math.min(0.85, w * 0.45 + 0.32));
+  if (style === "liner") return Math.max(1.15, Math.min(1.45, w * 0.35 + 1.1));
   if (style === "lash") return Math.max(0.32, Math.min(0.6, w * 0.4 + 0.22));
   return Math.max(1.2, Math.min(7, w)) * 0.5;
 }
@@ -909,25 +983,35 @@ function drawLineLayer(
   const lines = layer.lines.filter((ln) => ln.points.length >= 2 && ln.alpha > 0.02);
   if (!lines.length) return true;
   let box: BBox | null = null;
-  const built: { xy: Float32Array; side: Float32Array; alpha: number }[] = [];
+  const liner = layer.style === "liner";
+  const built: { xy: Float32Array; side: Float32Array; along: Float32Array; alpha: number }[] = [];
   for (const ln of lines) {
     const pts = ln.points.map((p) => mapPt(map, p));
     const radius = lineRadius(layer.style, ln.widthImg, map);
     for (const p of pts) box = expand(box, p.x, p.y, radius + 3);
-    const mesh = extrude(pts, radius);
+    const mesh = extrude(pts, radius, liner);
     if (mesh) built.push({ ...mesh, alpha: ln.alpha });
   }
   if (!box || !built.length) return true;
   const size = pixelSize(ctx, box);
   if (!size || !prepare(s, size.pw, size.ph)) return false;
   beginMask(s);
-  const feather = layer.style === "liner" ? 0.62 : 0.7;
+  const feather = liner ? 0.5 : 0.7;
   for (const mesh of built) {
-    drawLines(s, { x: box.x, y: box.y }, { x: box.w, y: box.h }, mesh.xy, mesh.side, feather, mesh.alpha);
+    drawLines(
+      s,
+      { x: box.x, y: box.y },
+      { x: box.w, y: box.h },
+      mesh.xy,
+      mesh.side,
+      mesh.along,
+      feather,
+      mesh.alpha,
+      liner ? 1 : 0,
+    );
   }
   s.gl.disable(s.gl.BLEND);
-  const liner = layer.style === "liner";
-  blurInto(s, (liner ? 0.45 : 0.35) * size.dpr);
+  blurInto(s, (liner ? 0.62 : 0.35) * size.dpr);
   const alpha = Math.max(...built.map((b) => b.alpha));
   const rec = recipe(state.look);
   const dark = liner ? rec.liner : ([0.1, 0.07, 0.06] as Rgb);
