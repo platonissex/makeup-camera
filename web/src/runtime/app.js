@@ -10126,7 +10126,7 @@ function Z2(t, e, n) {
       y = h
         ? r.mul(0.96).add(s.mul(0.08)).norm()
         : p
-          ? s.mul(0.84).sub(r.mul(0.28)).norm()
+          ? s.mul(0.92).add(r.mul(0.16)).norm()
           : s.mul(0.62).add(r.mul(0.48)).norm(),
       _ = h ? u / 0.3 : p ? Math.max(0, 1 - (u - 0.82) / 0.18) : 1,
       b = (h ? 0.08 : p ? 0.11 : 0.18) * _;
@@ -10139,9 +10139,13 @@ function Z2(t, e, n) {
         K = m * (h ? 0.72 : p ? 0.42 * _ : 0.64),
         Mt = go(n, N, N.sub(y.mul(K * (h ? 0.12 : 0.28)))),
         D = go(n, N, N.add(y.mul(K * (h ? 0.88 : 0.64))));
+      const corners = [t.px[33], t.px[263]],
+        nearEye = (q) => corners.some((c) => c && q.sub(c).len() < t.fw * 0.09);
       D.sub(Mt).len() < t.fw * 0.0025 ||
         a(Mt) ||
         a(D) ||
+        nearEye(Mt) ||
+        nearEye(D) ||
         o.push({
           a: Mt,
           b: D,
@@ -10924,30 +10928,67 @@ function m0(t) {
         ? "evening"
         : "daily";
 }
-function softLiner(t, e, gain) {
-  const lid = zs(t, e);
-  if (lid.length < 4) return Re();
-  const dense = Vo(lid, 4);
-  const lower = bt(t, "R_EYE_LOWER_MID", e);
-  const mid = lid[(lid.length / 2) | 0];
-  const into = lower.sub(mid);
-  const tuck =
-    into.len() < 1
-      ? new q(0, 0)
-      : into.norm().mul(Math.min(t.fw * 0.003, into.len() * 0.1));
-  const pts = dense.map((p) => p.add(tuck));
+function lidCrease(t, e) {
+  const up = Et(t),
+    lid = zs(t, e);
+  if (lid.length < 4) return null;
+  const brow = bt(t, "R_BROW_LOWER_MID", e),
+    mid = lid[Math.min(lid.length - 1, 4)],
+    room = Math.max(0, brow.sub(mid).dot(up));
+  return {
+    up,
+    lid,
+    crease: Math.min(t.fw * 0.09, Math.max(t.fw * 0.046, room * 0.68)),
+  };
+}
+function lidEllipse(t, e, spec) {
+  const span = lidCrease(t, e);
+  if (!span) return Re();
+  const frame = t.frame(e),
+    p = Pt(span.lid, !1, spec.u)[0],
+    center = p.add(span.up.mul(span.crease * spec.lift)),
+    axis = frame.xAxis,
+    perp = axis.perpToward(span.up);
   return _e({
-    style: "liner",
+    style: spec.style,
     fills: [],
     hairs: [],
-    lines: [
+    lines: [],
+    brushes: [
       {
-        points: pts,
-        alpha: Math.min(1, 0.96 * gain),
-        widthImg: t.fw * 0.0042,
+        center,
+        axis,
+        perp,
+        alongOut: frame.ew * spec.out,
+        alongIn: frame.ew * spec.inn,
+        across: Math.max(t.fw * 0.012, span.crease * spec.across),
+        alpha: spec.alpha,
       },
     ],
-    brushes: [],
+  });
+}
+function lidWash(t, e) {
+  // Gaussian on the mid lid. alongOut is aimed at the canthus and stays
+  // inside ~3 sigma of it, so the falloff is an oval, not a corner hair.
+  return lidEllipse(t, e, {
+    u: 0.4,
+    lift: 0.36,
+    out: 0.16,
+    inn: 0.22,
+    across: 0.4,
+    alpha: 0.96,
+    style: "shadow",
+  });
+}
+function creaseWash(t, e) {
+  return lidEllipse(t, e, {
+    u: 0.56,
+    lift: 0.55,
+    out: 0.08,
+    inn: 0.1,
+    across: 0.24,
+    alpha: 0.72,
+    style: "shadowDeep",
   });
 }
 function g0(t, e) {
@@ -10960,21 +11001,21 @@ function g0(t, e) {
     i = (a, c) => {
       (o(a, "RIGHT", c), o(a, "LEFT", c));
     },
-    liner = (gain) => {
-      ((s = Bt(s, softLiner(n, "RIGHT", gain))), (s = Bt(s, softLiner(n, "LEFT", gain))));
+    wash = (gain, deep) => {
+      (s = Bt(s, h2(lidWash(n, "RIGHT"), gain))),
+        (s = Bt(s, h2(lidWash(n, "LEFT"), gain))),
+        deep > 0 &&
+          ((s = Bt(s, h2(creaseWash(n, "RIGHT"), deep))),
+          (s = Bt(s, h2(creaseWash(n, "LEFT"), deep))));
     };
   e === "daily"
     ? (i("s08_brow_fill", 0.42),
-      i("s10_eyeshadow", 0.55),
-      liner(0.85),
+      wash(1, 0.8),
       i("s14_blush", 0.7),
       o("s15_lips", "CENTER", 0.72))
     : e === "evening"
       ? (i("s08_brow_fill", 0.58),
-        i("s10_eyeshadow", 0.85),
-        (s = Bt(s, h2(Hc(n, "RIGHT"), 0.55))),
-        (s = Bt(s, h2(Hc(n, "LEFT"), 0.55))),
-        liner(1.15),
+        wash(1, 1),
         i("s14_blush", 0.95),
         (s = Bt(s, h2(jc(n, "RIGHT"), 0.4))),
         (s = Bt(s, h2(jc(n, "LEFT"), 0.4))),

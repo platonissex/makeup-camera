@@ -74,9 +74,9 @@ const DAILY: Recipe = {
   liner: [0.14, 0.09, 0.08],
   linerOp: 0.62,
   shadow: [0.55, 0.42, 0.4],
-  shadowOp: 0.13,
+  shadowOp: 0.28,
   deep: [0.42, 0.3, 0.28],
-  deepOp: 0.16,
+  deepOp: 0.2,
   blush: [0.74, 0.45, 0.46],
   blushOp: 0.14,
   hiOp: 0.08,
@@ -92,9 +92,9 @@ const EVENING: Recipe = {
   liner: [0.07, 0.045, 0.04],
   linerOp: 0.74,
   shadow: [0.42, 0.3, 0.28],
-  shadowOp: 0.2,
+  shadowOp: 0.36,
   deep: [0.32, 0.2, 0.18],
-  deepOp: 0.24,
+  deepOp: 0.26,
   blush: [0.66, 0.34, 0.38],
   blushOp: 0.18,
   hiOp: 0.1,
@@ -255,8 +255,8 @@ void main() {
   float sigma = max(0.75, uRadius * 0.48);
   float sum = 0.0;
   float wsum = 0.0;
-  int R = int(min(18.0, ceil(uRadius)));
-  for (int i = -18; i <= 18; i++) {
+  int R = int(min(28.0, ceil(uRadius)));
+  for (int i = -28; i <= 28; i++) {
     if (abs(i) > R) continue;
     float x = float(i);
     float w = exp(-0.5 * (x * x) / (sigma * sigma));
@@ -742,6 +742,11 @@ export function renderGlPigment(
     }
     if (layer.style === "lip") return drawLip(s, ctx, state, map, layer, tone);
     if (layer.style === "shadow" || layer.style === "shadowDeep") {
+      // A filled ribbon ends in a cap. Blur turns that cap into a hair at the
+      // outer canthus. Try-on lid color is an ellipse brush instead.
+      if (layer.brushes.length > 0 && layer.fills.length === 0) {
+        return drawBrushLayer(s, ctx, map, layer, tone, state);
+      }
       return drawShadow(s, ctx, map, layer, tone, state);
     }
     return false;
@@ -1040,7 +1045,7 @@ function drawShadow(
   for (const f of fills) {
     const points = f.points.map((p) => mapPt(map, p));
     for (const p of points) {
-      box = expand(box, p.x, p.y, 10);
+      box = expand(box, p.x, p.y, 28);
       minX = Math.min(minX, p.x);
       maxX = Math.max(maxX, p.x);
       minY = Math.min(minY, p.y);
@@ -1063,13 +1068,16 @@ function drawShadow(
   s.gl.disable(s.gl.BLEND);
   const deep = layer.style === "shadowDeep";
   const feat = Math.max(8, Math.min(maxX - minX, maxY - minY));
-  const blurPx = Math.max(3.2, Math.min(deep ? 8 : 7.5, feat * (deep ? 0.2 : 0.18)));
+  const blurPx = Math.max(9, Math.min(16, feat * 0.62));
   blurInto(s, blurPx * size.dpr);
   const alpha = Math.max(...mapped.map((f) => f.alpha));
   const rec = recipe(state.look);
   const rgb = deep ? rec.deep : rec.shadow;
   const cap = deep ? rec.deepOp : rec.shadowOp;
-  present(s, ctx, box, rgb, Math.min(cap, alpha * tone * 0.95), 1.05, deep ? 0.2 : 0.08, "multiply", null);
+  // A wide lid wash carries a high fill alpha. The thin lesson band stays
+  // near its old strength because its fill alpha is much lower.
+  const gain = deep ? 0.7 : 0.55;
+  present(s, ctx, box, rgb, Math.min(cap, alpha * tone * gain), 1.02, deep ? 0.12 : 0.05, "multiply", null);
   remember(layer.style);
   return true;
 }
@@ -1122,11 +1130,14 @@ function drawBrushLayer(
     gl.drawArrays(gl.TRIANGLES, 0, 6);
     gl.disable(gl.BLEND);
     const hi = layer.style === "highlight";
+    const deep = layer.style === "shadowDeep";
+    const shadow = layer.style === "shadow" || deep;
     const rec = recipe(state.look);
-    const rgb: Rgb = hi ? [1, 0.96, 0.93] : rec.blush;
+    const rgb: Rgb = hi ? [1, 0.96, 0.93] : deep ? rec.deep : shadow ? rec.shadow : rec.blush;
     const mode: GlobalCompositeOperation = hi ? "soft-light" : "multiply";
-    const cap = hi ? rec.hiOp : rec.blushOp;
-    present(s, ctx, box, rgb, Math.min(cap, brush.alpha * tone * (hi ? 0.5 : 0.75)), 1.05, 0, mode, null);
+    const cap = hi ? rec.hiOp : deep ? rec.deepOp : shadow ? rec.shadowOp : rec.blushOp;
+    const gain = hi ? 0.5 : shadow ? 0.9 : 0.75;
+    present(s, ctx, box, rgb, Math.min(cap, brush.alpha * tone * gain), shadow ? 1.02 : 1.05, 0, mode, null);
     any = true;
   }
   if (any) remember(layer.style);
