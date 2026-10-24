@@ -12413,7 +12413,7 @@ async function nl(t, e) {
   return et.createFromOptions(t, {
     runningMode: "VIDEO",
     numFaces: 1,
-    outputFaceBlendshapes: !0,
+    outputFaceBlendshapes: !1,
     baseOptions: { modelAssetPath: n, delegate: e },
   });
 }
@@ -12657,6 +12657,21 @@ function b1(t = "home") {
 function E1() {
   const token = ++frameLoop;
   Ao = !0;
+  const videoFrame = S.requestVideoFrameCallback;
+  // One clock. rAF and video-frame together each ran a full detect plus
+  // two makeup composites, so the main thread never caught the display.
+  if (typeof videoFrame == "function") {
+    const e = () => {
+      if (token !== frameLoop || !vn) {
+        if (token === frameLoop) Ao = !1;
+        return;
+      }
+      sl(performance.now());
+      videoFrame.call(S, e);
+    };
+    videoFrame.call(S, e);
+    return;
+  }
   const t = (n) => {
     if (token !== frameLoop || !vn) {
       if (token === frameLoop) Ao = !1;
@@ -12665,14 +12680,6 @@ function E1() {
     (sl(n), requestAnimationFrame(t));
   };
   requestAnimationFrame(t);
-  const e = () => {
-    if (token !== frameLoop || !vn) return;
-    sl(performance.now());
-    const n = S.requestVideoFrameCallback;
-    typeof n == "function" && n.call(S, e);
-  };
-  typeof S.requestVideoFrameCallback == "function" &&
-    S.requestVideoFrameCallback(e);
 }
 document.addEventListener("visibilitychange", () => {
   if (document.hidden) {
@@ -12740,20 +12747,31 @@ function Ef(t, e, n, r, s) {
   o.textContent = c.join(`
 `);
 }
-let rl = 0;
+let rl = 0,
+  hudLayoutAt = 0,
+  lastCopyMs = 0,
+  lastDetectMs = 0,
+  lastPresentMs = 0;
 function sl(t) {
-  !vn ||
-    document.hidden ||
-    t - rl < 8 ||
-    ((rl = t),
-    (P === "guide" || P === "tryon") && S.readyState >= 2 && L1(),
-    v1(t),
-    If(t));
+  if (!vn || document.hidden || t - rl < 8) return;
+  rl = t;
+  const live = (P === "guide" || P === "tryon") && S.readyState >= 2;
+  if (!live) {
+    v1(t);
+    return;
+  }
+  if (ss) return;
+  const tCopy = performance.now();
+  if (!L1()) return;
+  lastCopyMs = performance.now() - tCopy;
+  // One composite, after this frame's landmarks. Painting the new video
+  // under the previous makeup is the slide while the head moves.
+  If(t);
 }
 function v1(t) {
   const e = document.querySelector("#view");
   if (!e) return;
-  const n = Math.min(window.devicePixelRatio || 1, 3),
+  const n = Math.min(window.devicePixelRatio || 1, 2),
     r = e.clientWidth,
     s = e.clientHeight;
   if (r < 2 || s < 2) return;
@@ -12789,13 +12807,15 @@ function v1(t) {
   const p = document.querySelector("[data-live]");
   p && Of(p, c);
   const f = document.querySelector("[data-try-status]");
-  f &&
-    (f.textContent =
+  if (f) {
+    const text =
       !fe && S.readyState >= 2
         ? "正在对准画面"
         : kn
           ? "没有看到脸，请正对镜头"
-          : "这是画完的样子。步骤里按住「看效果」也是这一层。");
+          : "这是画完的样子。步骤里按住「看效果」也是这一层。";
+    f.textContent !== text && (f.textContent = text);
+  }
 }
 function vf(t) {
   C && !ys && ((ys = !0), (wa = t));
@@ -12907,8 +12927,13 @@ function L1() {
     e = S.videoHeight;
   if (t < 2 || e < 2) return !1;
   ((t !== Qc || e !== tl) &&
-    ((Qc = t), (tl = e), (ue = null), (ht = null), (C = null), (En = null)),
-    A1(),
+    ((Qc = t),
+    (tl = e),
+    (ue = null),
+    (ht = null),
+    (C = null),
+    (En = null),
+    A1()),
     xf());
   const n = Me,
     r = Mf(t, e, n);
@@ -12918,7 +12943,8 @@ function L1() {
     (te = r.w),
     (ee = r.h),
     (Me = n));
-  const s = Math.min(1, 480 / Math.max(r.w, r.h)),
+  // The landmarker resizes internally, so a longer analysis frame only costs upload time.
+  const s = Math.min(1, 192 / Math.max(r.w, r.h)),
     o = Math.max(2, Math.round(r.w * s)),
     i = Math.max(2, Math.round((r.h * o) / r.w));
   return (
@@ -12970,26 +12996,29 @@ function Rf(t, e) {
       : r.fills[0];
   (n && (Qo = cf(Qo, of(mt, n.points, t, e), 0.18)), Tf());
 }
-async function If(t) {
+function If(t) {
   var r, s, o;
   const boot = new URLSearchParams(location.search);
   const fixture = boot.get("fixture") === "1";
   const photo = boot.get("photo");
   const synthetic = fixture && !photo;
+  if (ss) return;
   if (
-    ss ||
     (!synthetic && !Zt) ||
     S.readyState < 2 ||
     (P !== "guide" && P !== "tryon") ||
-    !L1()
-  )
+    mt.width < 2
+  ) {
+    v1(t);
     return;
+  }
   const e = mt.width,
     n = mt.height;
   ss = !0;
   try {
     const i = Math.max(el + 1, t);
     el = i;
+    const tDetect = performance.now();
     const a = synthetic
       ? {
           faceLandmarks: [
@@ -12998,6 +13027,7 @@ async function If(t) {
           faceBlendshapes: [],
         }
       : Zt.detectForVideo(mt, i);
+    lastDetectMs = performance.now() - tDetect;
     _s++;
     const c = (r = a.faceLandmarks) == null ? void 0 : r[0];
     if (!(!!c && c.length >= 478 && ol(c))) {
@@ -13075,7 +13105,12 @@ async function If(t) {
   } catch (i) {
     de = "人脸模型：" + Rr(i);
   } finally {
-    ((ss = !1), (P === "guide" || P === "tryon") && v1(performance.now()));
+    ss = !1;
+    if (P === "guide" || P === "tryon") {
+      const tPresent = performance.now();
+      v1(tPresent);
+      lastPresentMs = performance.now() - tPresent;
+    }
   }
 }
 function Of(t, e) {
@@ -13098,7 +13133,7 @@ function Of(t, e) {
               ? "位置已锁定，手拿开之后会继续跟"
               : df(m1),
     l = t.querySelector("[data-phase]");
-  l && (l.textContent = c || a);
+  l && l.textContent !== (c || a) && (l.textContent = c || a);
   const u = t.querySelector("[data-side]");
   u &&
     (n == null ? void 0 : n.side) === "both_sequential" &&
@@ -13121,9 +13156,10 @@ function Of(t, e) {
   if (d) {
     const m = [de, Xt].filter(Boolean).join(`
 `);
-    ((d.textContent = m), (d.style.display = m ? "block" : "none"));
+    (d.textContent !== m && (d.textContent = m),
+      (d.style.display = m ? "block" : "none"));
   }
-  ws();
+  performance.now() - hudLayoutAt > 400 && ((hudLayoutAt = performance.now()), ws());
 }
 function Pf() {
   const t = document.querySelector(".stage");
@@ -13694,6 +13730,9 @@ const zf = {
   },
   get detectCount() {
     return _s;
+  },
+  get frameMs() {
+    return { copy: lastCopyMs, detect: lastDetectMs, present: lastPresentMs };
   },
   get modelError() {
     return de;
