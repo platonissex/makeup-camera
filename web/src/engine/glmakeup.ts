@@ -1,4 +1,4 @@
-// WebGL2 pigment for the shared try-on / long-press path.
+// WebGL2 pigment for the shared try-on path. The on/off control is a tap.
 // Masks are feathered in a shader, then multiplied or soft-lit onto the
 // camera frame already in the 2D view. Lips get a second softer pass plus
 // a pose-shifted gloss. Eyeliner is a dark core with a short feather so it
@@ -100,8 +100,28 @@ const EVENING: Recipe = {
   hiOp: 0.1,
 };
 
+const BLUSH: Recipe = {
+  lip: [0.82, 0.46, 0.5],
+  lipOp: 0.22,
+  lipSoft: [0.92, 0.62, 0.64],
+  lipSoftOp: 0.08,
+  gloss: 0.08,
+  glossRgb: [1, 0.86, 0.82],
+  liner: [0.14, 0.09, 0.08],
+  linerOp: 0.62,
+  shadow: [0.7, 0.48, 0.46],
+  shadowOp: 0.12,
+  deep: [0.55, 0.36, 0.34],
+  deepOp: 0.08,
+  blush: [0.9, 0.36, 0.42],
+  blushOp: 0.32,
+  hiOp: 0.05,
+};
+
 function recipe(look?: string): Recipe {
-  return look === "evening" ? EVENING : DAILY;
+  if (look === "evening") return EVENING;
+  if (look === "blush") return BLUSH;
+  return DAILY;
 }
 
 type GL = WebGL2RenderingContext;
@@ -737,6 +757,8 @@ function loc(gl: GL, program: WebGLProgram, name: string): WebGLUniformLocation 
   return found;
 }
 
+let paintedLook = "";
+
 export function renderGlPigment(
   ctx: CanvasRenderingContext2D,
   state: GlState,
@@ -744,6 +766,11 @@ export function renderGlPigment(
   layer: GlLayer,
   toneMap: Record<string, number> | null | undefined,
 ): boolean {
+  const look = state.look || "";
+  if (look !== paintedLook) {
+    paintedLook = look;
+    drawnStyles.clear();
+  }
   if (!GL_STYLES.has(layer.style)) return false;
   const s = getSession();
   if (!s) return false;
