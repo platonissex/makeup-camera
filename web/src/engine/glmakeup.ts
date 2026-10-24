@@ -42,7 +42,67 @@ export type GlMap = {
   mapLen(n: number): number;
 };
 
-export type GlState = { yaw?: number };
+export type GlState = { yaw?: number; look?: string };
+
+type Rgb = [number, number, number];
+
+type Recipe = {
+  lip: Rgb;
+  lipOp: number;
+  lipSoft: Rgb;
+  lipSoftOp: number;
+  gloss: number;
+  glossRgb: Rgb;
+  liner: Rgb;
+  linerOp: number;
+  shadow: Rgb;
+  shadowOp: number;
+  deep: Rgb;
+  deepOp: number;
+  blush: Rgb;
+  blushOp: number;
+  hiOp: number;
+};
+
+const DAILY: Recipe = {
+  lip: [0.64, 0.36, 0.38],
+  lipOp: 0.3,
+  lipSoft: [0.8, 0.5, 0.52],
+  lipSoftOp: 0.1,
+  gloss: 0.12,
+  glossRgb: [1, 0.84, 0.78],
+  liner: [0.14, 0.09, 0.08],
+  linerOp: 0.62,
+  shadow: [0.55, 0.42, 0.4],
+  shadowOp: 0.13,
+  deep: [0.42, 0.3, 0.28],
+  deepOp: 0.16,
+  blush: [0.74, 0.45, 0.46],
+  blushOp: 0.14,
+  hiOp: 0.08,
+};
+
+const EVENING: Recipe = {
+  lip: [0.46, 0.16, 0.2],
+  lipOp: 0.46,
+  lipSoft: [0.68, 0.28, 0.32],
+  lipSoftOp: 0.16,
+  gloss: 0.2,
+  glossRgb: [1, 0.8, 0.74],
+  liner: [0.07, 0.045, 0.04],
+  linerOp: 0.74,
+  shadow: [0.42, 0.3, 0.28],
+  shadowOp: 0.2,
+  deep: [0.32, 0.2, 0.18],
+  deepOp: 0.24,
+  blush: [0.66, 0.34, 0.38],
+  blushOp: 0.18,
+  hiOp: 0.1,
+};
+
+function recipe(look?: string): Recipe {
+  return look === "evening" ? EVENING : DAILY;
+}
 
 type GL = WebGL2RenderingContext;
 
@@ -157,10 +217,11 @@ const LINE_FS = `#version 300 es
 precision highp float;
 in float vSide;
 uniform float uFeather;
+uniform float uAlpha;
 out vec4 o;
 void main() {
   float d = abs(vSide);
-  float a = 1.0 - smoothstep(1.0 - uFeather, 1.0, d);
+  float a = (1.0 - smoothstep(1.0 - uFeather, 1.0, d)) * uAlpha;
   o = vec4(a);
 }`;
 
@@ -453,7 +514,7 @@ function drawMesh(s: Session, origin: Pt, size: Pt, xy: Float32Array): void {
   gl.drawArrays(gl.TRIANGLES, 0, xy.length / 2);
 }
 
-function drawLines(s: Session, origin: Pt, size: Pt, xy: Float32Array, side: Float32Array, feather: number): void {
+function drawLines(s: Session, origin: Pt, size: Pt, xy: Float32Array, side: Float32Array, feather: number, alpha = 1): void {
   const gl = s.gl;
   gl.useProgram(s.line);
   const inter = new Float32Array(xy.length + side.length);
@@ -472,6 +533,7 @@ function drawLines(s: Session, origin: Pt, size: Pt, xy: Float32Array, side: Flo
   gl.uniform2f(gl.getUniformLocation(s.line, "uOrigin"), origin.x, origin.y);
   gl.uniform2f(gl.getUniformLocation(s.line, "uSize"), size.x, size.y);
   gl.uniform1f(gl.getUniformLocation(s.line, "uFeather"), feather);
+  gl.uniform1f(gl.getUniformLocation(s.line, "uAlpha"), alpha);
   gl.drawArrays(gl.TRIANGLES, 0, n);
   gl.disableVertexAttribArray(1);
 }
@@ -574,8 +636,8 @@ function axisCss(map: GlMap, origin: Pt, vec: Pt): Pt {
 
 function lineRadius(style: string, widthImg: number, map: GlMap): number {
   const w = map.mapLen(widthImg);
-  if (style === "liner") return Math.max(1.55, Math.min(2.6, w * 1.4 + 1.1));
-  if (style === "lash") return Math.max(0.85, Math.min(1.5, w * 1.2 + 0.55));
+  if (style === "liner") return Math.max(0.4, Math.min(0.85, w * 0.45 + 0.32));
+  if (style === "lash") return Math.max(0.32, Math.min(0.6, w * 0.4 + 0.22));
   return Math.max(1.2, Math.min(7, w)) * 0.5;
 }
 
@@ -599,14 +661,14 @@ export function renderGlPigment(
   const tone = toneOf(layer.style, toneMap);
   try {
     if (layer.style === "liner" || layer.style === "lash") {
-      return drawLineLayer(s, ctx, map, layer, tone);
+      return drawLineLayer(s, ctx, map, layer, tone, state);
     }
     if (layer.style === "blush" || layer.style === "highlight") {
-      return drawBrushLayer(s, ctx, map, layer, tone);
+      return drawBrushLayer(s, ctx, map, layer, tone, state);
     }
     if (layer.style === "lip") return drawLip(s, ctx, state, map, layer, tone);
     if (layer.style === "shadow" || layer.style === "shadowDeep") {
-      return drawShadow(s, ctx, map, layer, tone);
+      return drawShadow(s, ctx, map, layer, tone, state);
     }
     return false;
   } catch (err) {
@@ -639,10 +701,11 @@ function drawLip(
   if (!fills.length) return true;
   const mapped: { points: Pt[]; holes: Pt[][]; alpha: number }[] = [];
   let box: BBox | null = null;
+  const insetPx = 2.8;
   for (const f of fills) {
-    const points = f.points.map((p) => mapPt(map, p));
+    const points = insetLoop(relaxLoop(f.points.map((p) => mapPt(map, p))), insetPx);
     const holes = (f.holes ?? []).map((h) => h.map((p) => mapPt(map, p)));
-    for (const p of points) box = expand(box, p.x, p.y, 6);
+    for (const p of points) box = expand(box, p.x, p.y, 5);
     mapped.push({ points, holes, alpha: f.alpha });
   }
   if (!box) return true;
@@ -666,7 +729,7 @@ function drawLip(
   if (!any) return false;
   s.gl.blendEquation(s.gl.FUNC_ADD);
   s.gl.disable(s.gl.BLEND);
-  blurInto(s, 3.8 * size.dpr);
+  blurInto(s, 1.15 * size.dpr);
   let holeTex: WebGLTexture | null = null;
   if (holeTris.length && s.c && s.b) {
     bindTarget(s.gl, s.c);
@@ -676,18 +739,43 @@ function drawLip(
     s.gl.blendFunc(s.gl.ONE, s.gl.ONE);
     for (const ht of holeTris) drawMesh(s, origin, span, ht);
     s.gl.disable(s.gl.BLEND);
-    blurPass(s, s.c, s.b, { x: 1, y: 0 }, 1.15 * size.dpr);
-    blurPass(s, s.b, s.c, { x: 0, y: 1 }, 1.15 * size.dpr);
+    blurPass(s, s.c, s.b, { x: 1, y: 0 }, 0.65 * size.dpr);
+    blurPass(s, s.b, s.c, { x: 0, y: 1 }, 0.65 * size.dpr);
     holeTex = s.c.tex;
   }
   const alpha = Math.max(...mapped.map((f) => f.alpha));
-  const base = amp(alpha, tone, 1.02, 0.76);
-  present(s, ctx, box, [0.55, 0.07, 0.1], base, 1.08, 0.42, "multiply", holeTex);
-  present(s, ctx, box, [0.98, 0.4, 0.38], amp(alpha, tone, 0.5, 0.4), 1.45, 0.12, "soft-light", holeTex);
+  const scale = Math.max(0.7, Math.min(1.2, alpha / 0.6)) * tone;
+  const rec = recipe(state.look);
+  present(s, ctx, box, rec.lip, Math.min(0.55, rec.lipOp * scale), 1.4, 0.06, "multiply", holeTex);
+  present(s, ctx, box, rec.lipSoft, Math.min(0.22, rec.lipSoftOp * scale), 1.6, 0, "soft-light", holeTex);
   const holePts = mapped.flatMap((f) => f.holes.flat());
-  drawLipGloss(s, ctx, state, box, mapped[0].points, holePts, holeTex, amp(alpha, tone, 1, 0.9));
+  drawLipGloss(s, ctx, state, box, mapped[0].points, holePts, holeTex, Math.min(0.28, rec.gloss * scale), rec.glossRgb);
   remember("lip");
   return true;
+}
+
+function relaxLoop(points: Pt[]): Pt[] {
+  if (points.length < 6) return points;
+  const n = points.length;
+  const out: Pt[] = [];
+  for (let i = 0; i < n; i++) {
+    const a = points[(i + n - 1) % n];
+    const b = points[i];
+    const c = points[(i + 1) % n];
+    out.push({ x: a.x * 0.2 + b.x * 0.6 + c.x * 0.2, y: a.y * 0.2 + b.y * 0.6 + c.y * 0.2 });
+  }
+  return out;
+}
+
+function insetLoop(points: Pt[], px: number): Pt[] {
+  const b = boundsOf(points);
+  return points.map((p) => {
+    const dx = b.cx - p.x;
+    const dy = b.cy - p.y;
+    const len = Math.hypot(dx, dy) || 1;
+    const pull = Math.min(px, len * 0.16);
+    return { x: p.x + (dx / len) * pull, y: p.y + (dy / len) * pull };
+  });
 }
 
 function boundsOf(points: Pt[]): { minX: number; maxX: number; minY: number; maxY: number; cx: number; cy: number } {
@@ -718,52 +806,27 @@ function drawLipGloss(
   holePts: Pt[],
   hole: WebGLTexture | null,
   opacity: number,
+  rgb: Rgb,
 ): void {
-  if (!s.a || !s.b || points.length < 4 || opacity < 0.05) return;
+  if (!s.a || !s.b || points.length < 4 || opacity < 0.04) return;
   const all = boundsOf(points);
   const width = Math.max(8, all.maxX - all.minX);
   const yaw = state.yaw ?? 0;
-  const shift = -yaw * width * 0.28;
+  const shift = -yaw * width * 0.22;
   const mouth = holePts.length >= 3 ? boundsOf(holePts) : null;
-  const lowerTop = mouth ? mouth.maxY : all.minY + (all.maxY - all.minY) * 0.55;
-  const lowerBot = all.maxY;
-  const lowerH = Math.max(4, lowerBot - lowerTop);
-  const upperBot = mouth ? mouth.minY : all.minY + (all.maxY - all.minY) * 0.42;
-  const upperTop = all.minY;
-  const upperH = Math.max(3, upperBot - upperTop);
-  const midX = mouth ? mouth.cx : all.cx;
+  const lowerTop = mouth ? mouth.maxY : all.minY + (all.maxY - all.minY) * 0.58;
+  const lowerH = Math.max(3, all.maxY - lowerTop);
+  const midX = (mouth ? mouth.cx : all.cx) + shift;
   stampMaskedGloss(
     s,
     ctx,
     box,
     hole,
-    { x: midX + shift, y: lowerTop + lowerH * 0.38 },
-    Math.max(6, width * 0.22),
-    Math.max(2.5, lowerH * 0.55),
-    opacity * 0.78,
-    [1, 0.93, 0.9],
-  );
-  stampMaskedGloss(
-    s,
-    ctx,
-    box,
-    hole,
-    { x: midX + shift * 0.7, y: lowerTop + lowerH * 0.3 },
-    Math.max(4, width * 0.1),
-    Math.max(2, lowerH * 0.28),
+    { x: midX, y: lowerTop + lowerH * 0.42 },
+    Math.max(3, width * 0.09),
+    Math.max(1.6, lowerH * 0.22),
     opacity,
-    [1, 0.98, 0.96],
-  );
-  stampMaskedGloss(
-    s,
-    ctx,
-    box,
-    hole,
-    { x: midX + shift * 0.45, y: upperTop + upperH * 0.62 },
-    Math.max(4, width * 0.12),
-    Math.max(2, upperH * 0.4),
-    opacity * 0.42,
-    [1, 0.95, 0.92],
+    rgb,
   );
 }
 
@@ -841,6 +904,7 @@ function drawLineLayer(
   map: GlMap,
   layer: GlLayer,
   tone: number,
+  state: GlState,
 ): boolean {
   const lines = layer.lines.filter((ln) => ln.points.length >= 2 && ln.alpha > 0.02);
   if (!lines.length) return true;
@@ -857,15 +921,18 @@ function drawLineLayer(
   const size = pixelSize(ctx, box);
   if (!size || !prepare(s, size.pw, size.ph)) return false;
   beginMask(s);
-  const feather = layer.style === "liner" ? 0.18 : 0.42;
-  for (const mesh of built) drawLines(s, { x: box.x, y: box.y }, { x: box.w, y: box.h }, mesh.xy, mesh.side, feather);
+  const feather = layer.style === "liner" ? 0.62 : 0.7;
+  for (const mesh of built) {
+    drawLines(s, { x: box.x, y: box.y }, { x: box.w, y: box.h }, mesh.xy, mesh.side, feather, mesh.alpha);
+  }
   s.gl.disable(s.gl.BLEND);
   const liner = layer.style === "liner";
-  blurInto(s, (liner ? 0.32 : 0.45) * size.dpr);
+  blurInto(s, (liner ? 0.45 : 0.35) * size.dpr);
   const alpha = Math.max(...built.map((b) => b.alpha));
-  const dark: [number, number, number] = liner ? [0.04, 0.03, 0.025] : [0.06, 0.045, 0.04];
-  const opacity = amp(alpha, tone, liner ? 1.85 : 1.2, liner ? 0.97 : 0.78);
-  present(s, ctx, box, dark, opacity, liner ? 0.92 : 1.05, 0, "multiply", null);
+  const rec = recipe(state.look);
+  const dark = liner ? rec.liner : ([0.1, 0.07, 0.06] as Rgb);
+  const opacity = liner ? Math.min(rec.linerOp, 0.8 * tone) : Math.min(0.4, alpha * tone * 0.9);
+  present(s, ctx, box, dark, opacity, 1.15, 0, "multiply", null);
   remember(layer.style);
   return true;
 }
@@ -876,6 +943,7 @@ function drawShadow(
   map: GlMap,
   layer: GlLayer,
   tone: number,
+  state: GlState,
 ): boolean {
   const fills = layer.fills.filter((f) => f.points.length >= 3 && f.alpha > 0.02);
   if (!fills.length) return true;
@@ -914,18 +982,10 @@ function drawShadow(
   const blurPx = Math.max(3.2, Math.min(deep ? 8 : 7.5, feat * (deep ? 0.2 : 0.18)));
   blurInto(s, blurPx * size.dpr);
   const alpha = Math.max(...mapped.map((f) => f.alpha));
-  const rgb: [number, number, number] = deep ? [0.34, 0.22, 0.2] : [0.44, 0.32, 0.3];
-  present(
-    s,
-    ctx,
-    box,
-    rgb,
-    amp(alpha, tone, deep ? 1.25 : 1.35, deep ? 0.5 : 0.36),
-    0.95,
-    deep ? 0.45 : 0.22,
-    "multiply",
-    null,
-  );
+  const rec = recipe(state.look);
+  const rgb = deep ? rec.deep : rec.shadow;
+  const cap = deep ? rec.deepOp : rec.shadowOp;
+  present(s, ctx, box, rgb, Math.min(cap, alpha * tone * 0.95), 1.05, deep ? 0.2 : 0.08, "multiply", null);
   remember(layer.style);
   return true;
 }
@@ -936,6 +996,7 @@ function drawBrushLayer(
   map: GlMap,
   layer: GlLayer,
   tone: number,
+  state: GlState,
 ): boolean {
   const brushes = layer.brushes.filter((b) => b.alpha > 0.02);
   if (!brushes.length) return true;
@@ -977,19 +1038,11 @@ function drawBrushLayer(
     gl.drawArrays(gl.TRIANGLES, 0, 6);
     gl.disable(gl.BLEND);
     const hi = layer.style === "highlight";
-    const rgb: [number, number, number] = hi ? [1, 0.95, 0.9] : [0.76, 0.3, 0.36];
+    const rec = recipe(state.look);
+    const rgb: Rgb = hi ? [1, 0.96, 0.93] : rec.blush;
     const mode: GlobalCompositeOperation = hi ? "soft-light" : "multiply";
-    present(
-      s,
-      ctx,
-      box,
-      rgb,
-      amp(brush.alpha, tone, hi ? 1.7 : 1.85, hi ? 0.55 : 0.46),
-      1,
-      0,
-      mode,
-      null,
-    );
+    const cap = hi ? rec.hiOp : rec.blushOp;
+    present(s, ctx, box, rgb, Math.min(cap, brush.alpha * tone * (hi ? 0.5 : 0.75)), 1.05, 0, mode, null);
     any = true;
   }
   if (any) remember(layer.style);
