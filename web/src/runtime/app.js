@@ -10924,29 +10924,69 @@ function m0(t) {
         ? "evening"
         : "daily";
 }
-function softLiner(t, e, gain) {
-  const lid = zs(t, e);
-  if (lid.length < 4) return Re();
-  const dense = Vo(lid, 4);
-  const lower = bt(t, "R_EYE_LOWER_MID", e);
-  const mid = lid[(lid.length / 2) | 0];
-  const into = lower.sub(mid);
-  const tuck =
-    into.len() < 1
-      ? new q(0, 0)
-      : into.norm().mul(Math.min(t.fw * 0.003, into.len() * 0.1));
-  const pts = dense.map((p) => p.add(tuck));
+function lidCrease(t, e) {
+  const up = Et(t),
+    lid = zs(t, e);
+  if (lid.length < 4) return null;
+  const brow = bt(t, "R_BROW_LOWER_MID", e),
+    mid = lid[Math.min(lid.length - 1, 4)],
+    room = Math.max(0, brow.sub(mid).dot(up));
+  return {
+    up,
+    lid,
+    crease: Math.min(t.fw * 0.09, Math.max(t.fw * 0.046, room * 0.68)),
+  };
+}
+function lidRibbon(lid, up, from, to, heightAt) {
+  const n = 14,
+    lower = [],
+    upper = [];
+  for (let i = 0; i <= n; i++) {
+    const k = i / n,
+      u = from + (to - from) * k,
+      p = Pt(lid, !1, Math.min(0.97, u))[0],
+      h = Math.max(2, heightAt(k));
+    (lower.push(p), upper.push(p.add(up.mul(h))));
+  }
+  return upper.concat(lower.slice().reverse());
+}
+function lidWash(t, e) {
+  const span = lidCrease(t, e);
+  if (!span) return Re();
+  const pts = lidRibbon(span.lid, span.up, 0.05, 0.9, (k) => {
+    const belly = Math.sin(Math.PI * k);
+    return span.crease * (0.46 + 0.54 * belly);
+  });
   return _e({
-    style: "liner",
-    fills: [],
+    style: "shadow",
+    fills: [{ points: pts, alpha: 0.94 }],
     hairs: [],
-    lines: [
-      {
-        points: pts,
-        alpha: Math.min(1, 0.96 * gain),
-        widthImg: t.fw * 0.0042,
-      },
-    ],
+    lines: [],
+    brushes: [],
+  });
+}
+function creaseWash(t, e) {
+  const span = lidCrease(t, e);
+  if (!span) return Re();
+  const n = 12,
+    from = 0.58,
+    to = 0.9,
+    lower = [],
+    upper = [];
+  for (let i = 0; i <= n; i++) {
+    const k = i / n,
+      u = from + (to - from) * k,
+      p = Pt(span.lid, !1, u)[0],
+      belly = Math.sin(Math.PI * k),
+      base = span.crease * (0.4 + 0.08 * belly),
+      top = Math.max(base + t.fw * 0.016, span.crease * (0.52 + 0.4 * belly));
+    (lower.push(p.add(span.up.mul(base))), upper.push(p.add(span.up.mul(top))));
+  }
+  return _e({
+    style: "shadowDeep",
+    fills: [{ points: upper.concat(lower.slice().reverse()), alpha: 0.82 }],
+    hairs: [],
+    lines: [],
     brushes: [],
   });
 }
@@ -10960,21 +11000,21 @@ function g0(t, e) {
     i = (a, c) => {
       (o(a, "RIGHT", c), o(a, "LEFT", c));
     },
-    liner = (gain) => {
-      ((s = Bt(s, softLiner(n, "RIGHT", gain))), (s = Bt(s, softLiner(n, "LEFT", gain))));
+    wash = (gain, deep) => {
+      (s = Bt(s, h2(lidWash(n, "RIGHT"), gain))),
+        (s = Bt(s, h2(lidWash(n, "LEFT"), gain))),
+        deep > 0 &&
+          ((s = Bt(s, h2(creaseWash(n, "RIGHT"), deep))),
+          (s = Bt(s, h2(creaseWash(n, "LEFT"), deep))));
     };
   e === "daily"
     ? (i("s08_brow_fill", 0.42),
-      i("s10_eyeshadow", 0.55),
-      liner(0.85),
+      wash(1, 0.8),
       i("s14_blush", 0.7),
       o("s15_lips", "CENTER", 0.72))
     : e === "evening"
       ? (i("s08_brow_fill", 0.58),
-        i("s10_eyeshadow", 0.85),
-        (s = Bt(s, h2(Hc(n, "RIGHT"), 0.55))),
-        (s = Bt(s, h2(Hc(n, "LEFT"), 0.55))),
-        liner(1.15),
+        wash(1, 1),
         i("s14_blush", 0.95),
         (s = Bt(s, h2(jc(n, "RIGHT"), 0.4))),
         (s = Bt(s, h2(jc(n, "LEFT"), 0.4))),
