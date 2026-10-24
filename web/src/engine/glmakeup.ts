@@ -717,9 +717,24 @@ function lineRadius(style: string, widthImg: number, map: GlMap): number {
 
 function remember(style: string): void {
   drawnFrames++;
-  drawnStyles.add(style);
+  const added = !drawnStyles.has(style);
+  if (added) drawnStyles.add(style);
   const g = globalThis as { __glPigment?: { frames: number; styles: string[] } };
-  g.__glPigment = { frames: drawnFrames, styles: [...drawnStyles] };
+  if (!g.__glPigment || added) g.__glPigment = { frames: drawnFrames, styles: [...drawnStyles] };
+  else g.__glPigment.frames = drawnFrames;
+}
+
+const uniformLocs = new WeakMap<WebGLProgram, Map<string, WebGLUniformLocation | null>>();
+function loc(gl: GL, program: WebGLProgram, name: string): WebGLUniformLocation | null {
+  let table = uniformLocs.get(program);
+  if (!table) {
+    table = new Map();
+    uniformLocs.set(program, table);
+  }
+  if (table.has(name)) return table.get(name) ?? null;
+  const found = gl.getUniformLocation(program, name);
+  table.set(name, found);
+  return found;
 }
 
 export function renderGlPigment(
@@ -940,14 +955,14 @@ function stampMaskedGloss(
   gl.bufferData(gl.ARRAY_BUFFER, xy, gl.DYNAMIC_DRAW);
   gl.enableVertexAttribArray(0);
   gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
-  gl.uniform2f(gl.getUniformLocation(s.brush, "uOrigin"), box.x, box.y);
-  gl.uniform2f(gl.getUniformLocation(s.brush, "uSize"), box.w, box.h);
-  gl.uniform2f(gl.getUniformLocation(s.brush, "uCenter"), center.x, center.y);
-  gl.uniform2f(gl.getUniformLocation(s.brush, "uAxis"), 1, 0);
-  gl.uniform2f(gl.getUniformLocation(s.brush, "uPerp"), 0, 1);
-  gl.uniform1f(gl.getUniformLocation(s.brush, "uOut"), rx);
-  gl.uniform1f(gl.getUniformLocation(s.brush, "uIn"), rx);
-  gl.uniform1f(gl.getUniformLocation(s.brush, "uAcross"), ry);
+  gl.uniform2f(loc(gl, s.brush, "uOrigin"), box.x, box.y);
+  gl.uniform2f(loc(gl, s.brush, "uSize"), box.w, box.h);
+  gl.uniform2f(loc(gl, s.brush, "uCenter"), center.x, center.y);
+  gl.uniform2f(loc(gl, s.brush, "uAxis"), 1, 0);
+  gl.uniform2f(loc(gl, s.brush, "uPerp"), 0, 1);
+  gl.uniform1f(loc(gl, s.brush, "uOut"), rx);
+  gl.uniform1f(loc(gl, s.brush, "uIn"), rx);
+  gl.uniform1f(loc(gl, s.brush, "uAcross"), ry);
   gl.drawArrays(gl.TRIANGLES, 0, 6);
   gl.disable(gl.BLEND);
 
@@ -1119,14 +1134,14 @@ function drawBrushLayer(
     gl.bufferData(gl.ARRAY_BUFFER, xy, gl.DYNAMIC_DRAW);
     gl.enableVertexAttribArray(0);
     gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
-    gl.uniform2f(gl.getUniformLocation(s.brush, "uOrigin"), box.x, box.y);
-    gl.uniform2f(gl.getUniformLocation(s.brush, "uSize"), box.w, box.h);
-    gl.uniform2f(gl.getUniformLocation(s.brush, "uCenter"), center.x, center.y);
-    gl.uniform2f(gl.getUniformLocation(s.brush, "uAxis"), axis.x, axis.y);
-    gl.uniform2f(gl.getUniformLocation(s.brush, "uPerp"), perp.x, perp.y);
-    gl.uniform1f(gl.getUniformLocation(s.brush, "uOut"), alongOut);
-    gl.uniform1f(gl.getUniformLocation(s.brush, "uIn"), alongIn);
-    gl.uniform1f(gl.getUniformLocation(s.brush, "uAcross"), across);
+    gl.uniform2f(loc(gl, s.brush, "uOrigin"), box.x, box.y);
+    gl.uniform2f(loc(gl, s.brush, "uSize"), box.w, box.h);
+    gl.uniform2f(loc(gl, s.brush, "uCenter"), center.x, center.y);
+    gl.uniform2f(loc(gl, s.brush, "uAxis"), axis.x, axis.y);
+    gl.uniform2f(loc(gl, s.brush, "uPerp"), perp.x, perp.y);
+    gl.uniform1f(loc(gl, s.brush, "uOut"), alongOut);
+    gl.uniform1f(loc(gl, s.brush, "uIn"), alongIn);
+    gl.uniform1f(loc(gl, s.brush, "uAcross"), across);
     gl.drawArrays(gl.TRIANGLES, 0, 6);
     gl.disable(gl.BLEND);
     const hi = layer.style === "highlight";
