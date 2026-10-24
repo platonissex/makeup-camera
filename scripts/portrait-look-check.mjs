@@ -62,6 +62,55 @@ async function waitReady(page) {
   );
 }
 
+async function installPhone(page) {
+  await page.evaluateOnNewDocument(() => {
+    const orig = window.matchMedia.bind(window);
+    window.matchMedia = (q) => {
+      const query = String(q);
+      if (query.includes("pointer") && query.includes("coarse")) {
+        return {
+          matches: true,
+          media: query,
+          addEventListener() {},
+          removeEventListener() {},
+          addListener() {},
+          removeListener() {},
+          dispatchEvent() {
+            return false;
+          },
+        };
+      }
+      return orig(q);
+    };
+    const orient = {
+      angle: 0,
+      type: "portrait-primary",
+      lock: () => Promise.reject(new DOMException("lock unsupported", "NotSupportedError")),
+      addEventListener() {},
+      removeEventListener() {},
+    };
+    try {
+      Object.defineProperty(screen, "orientation", { configurable: true, get: () => orient });
+    } catch {}
+    try {
+      Object.defineProperty(window, "orientation", { configurable: true, get: () => 0 });
+    } catch {}
+  });
+}
+
+const wide = await browser.newPage();
+await installPhone(wide);
+await wide.setViewport({ width: 844, height: 390, deviceScaleFactor: 1, isMobile: true, hasTouch: true });
+await wide.goto(base + "?photo=ref-face.png&cpu=1&mirror=0", { waitUntil: "domcontentloaded" });
+await wide.waitForSelector("[data-try]");
+const layout = await wide.evaluate(() => {
+  const app = document.querySelector("#app");
+  return { w: app.clientWidth, h: app.clientHeight, portrait: window.__makeup.orient.portrait };
+});
+console.log("layout", JSON.stringify(layout));
+if (!(layout.h > layout.w && layout.portrait)) fail("portrait layout", layout);
+await wide.close();
+
 const page = await browser.newPage();
 page.setDefaultTimeout(40000);
 const logs = [];
@@ -69,50 +118,14 @@ page.on("pageerror", (e) => logs.push("pageerror " + e.message));
 page.on("console", (m) => {
   if (m.type() === "error") logs.push("console " + m.text().slice(0, 200));
 });
-await page.evaluateOnNewDocument(() => {
-  const orig = window.matchMedia.bind(window);
-  window.matchMedia = (q) => {
-    const query = String(q);
-    if (query.includes("pointer") && query.includes("coarse")) {
-      return {
-        matches: true,
-        media: query,
-        addEventListener() {},
-        removeEventListener() {},
-        addListener() {},
-        removeListener() {},
-        dispatchEvent() {
-          return false;
-        },
-      };
-    }
-    return orig(q);
-  };
-  const orient = {
-    angle: 0,
-    type: "portrait-primary",
-    lock: () => Promise.reject(new DOMException("lock unsupported", "NotSupportedError")),
-    addEventListener() {},
-    removeEventListener() {},
-  };
-  try {
-    Object.defineProperty(screen, "orientation", { configurable: true, get: () => orient });
-  } catch {}
-  try {
-    Object.defineProperty(window, "orientation", { configurable: true, get: () => 0 });
-  } catch {}
-});
-// Phone is portrait (angle 0, coarse pointer) but the viewport reports landscape.
-await page.setViewport({ width: 844, height: 390, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
+await installPhone(page);
+await page.setViewport({ width: 390, height: 844, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
 await page.goto(base + "?photo=ref-face.png&cpu=1&mirror=0", { waitUntil: "domcontentloaded" });
 await page.waitForSelector("[data-try='natural_brow_v1']");
-const layout = await page.evaluate(() => {
-  const app = document.querySelector("#app");
-  return { w: app.clientWidth, h: app.clientHeight, portrait: window.__makeup.orient.portrait };
+await page.waitForFunction(() => {
+  const v = document.querySelector("video");
+  return v && v.readyState >= 2 && window.__makeup && window.__makeup.debug.running;
 });
-console.log("layout", JSON.stringify(layout));
-if (!(layout.h > layout.w && layout.portrait)) fail("portrait layout", layout);
-
 await page.click("[data-try='natural_brow_v1']");
 await waitReady(page);
 let state = await snap(page);
@@ -189,53 +202,43 @@ await page.waitForFunction(
 await page.click("#hold");
 await page.waitForFunction(() => {
   const s = window.__makeup.pigmentStyles;
-  return window.__makeup.effectOn === true && s.length > 0 && s.every((x) => x === "brow");
+  return (
+    window.__makeup.effectOn === true &&
+    window.__makeup.previewAlpha === 1 &&
+    s.length > 0 &&
+    s.every((x) => x === "brow")
+  );
 });
 state = await snap(page);
 console.log("guide brow", JSON.stringify(state));
-if (state.lookId !== "natural_brow_v1") fail("guide look", state);
+if (state.lookId !== "natural_brow_v1" || state.alpha !== 1) fail("guide look", state);
 
-const before = await snap(page);
-await page.evaluate(async () => {
-  const img = new Image();
-  img.src = "ref-face.png";
-  await img.decode();
-  const c = document.createElement("canvas");
-  c.width = 1280;
-  c.height = 720;
-  const g = c.getContext("2d");
-  const paint = () => {
-    g.setTransform(1, 0, 0, 1, 0, 0);
-    g.fillStyle = "#c4b2a4";
-    g.fillRect(0, 0, c.width, c.height);
-    g.translate(c.width, 0);
-    g.rotate(Math.PI / 2);
-    const s = Math.min(c.height / img.naturalWidth, c.width / img.naturalHeight);
-    const dw = img.naturalWidth * s;
-    const dh = img.naturalHeight * s;
-    g.drawImage(img, (c.height - dw) / 2, (c.width - dh) / 2, dw, dh);
-  };
-  paint();
-  setInterval(paint, 80);
-  const video = document.querySelector("video");
-  video.srcObject = c.captureStream(12);
-  await video.play();
+const side = await browser.newPage();
+side.setDefaultTimeout(40000);
+await installPhone(side);
+await side.setViewport({ width: 390, height: 844, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
+await side.goto(base + "?photo=ref-face.png&sensor=90&try=daily_commute_v1&cpu=1&mirror=0", {
+  waitUntil: "domcontentloaded",
 });
-await page.waitForFunction(
+await side.waitForFunction(
   () =>
+    window.__makeup &&
     window.__makeup.faceLost === false &&
     window.__makeup.orient.headUp === true &&
     window.__makeup.orient.poseLock === true &&
+    window.__makeup.frame.videoWidth > window.__makeup.frame.videoHeight &&
     window.__makeup.frame.frameH > window.__makeup.frame.frameW &&
-    window.__makeup.pigmentStyles.length > 0 &&
-    window.__makeup.pigmentStyles.every((s) => s === "brow"),
-  { timeout: 20000 },
+    window.__makeup.lookId === "daily_commute_v1" &&
+    window.__makeup.pigmentStyles.includes("lip") &&
+    window.__makeup.pigmentStyles.includes("shadow") &&
+    !window.__makeup.pigmentStyles.includes("highlight"),
+  { timeout: 25000 },
 );
-state = await snap(page);
+state = await snap(side);
 console.log("landscape-sensor", JSON.stringify(state));
-console.log("before-rotation", before.frame, before.orient);
-if (state.frame.rotation === before.frame.rotation && state.frame.videoWidth === before.frame.videoWidth)
-  fail("landscape sensor did not change the buffer", state);
+if (!(state.frame.frameH > state.frame.frameW)) fail("sideways buffer stayed landscape", state);
+if (state.status.includes("没有看到脸")) fail("sideways buffer kept the no-face warning", state);
+await side.close();
 
 if (logs.length) console.log("logs", logs.join(" | "));
 await browser.close();

@@ -12507,20 +12507,30 @@ function openFixtureStream(motion) {
   const paint = () => paintFixture(g, c.width, c.height, performance.now() / 1000, motion);
   return (paint(), setInterval(paint, 33), c.captureStream(30));
 }
-function openPhotoStream(url) {
+function openPhotoStream(url, sensor) {
+  const turned = sensor === "90" || sensor === "270";
   const c = document.createElement("canvas");
-  ((c.width = 720), (c.height = 1280));
+  ((c.width = turned ? 1280 : 720), (c.height = turned ? 720 : 1280));
   const g = c.getContext("2d");
   const img = new Image();
   const paint = () => {
     if (!g || !img.complete || !img.naturalWidth) return;
-    const s = Math.min(c.width / img.naturalWidth, c.height / img.naturalHeight);
+    g.setTransform(1, 0, 0, 1, 0, 0);
+    g.fillStyle = "#c4b2a4";
+    g.fillRect(0, 0, c.width, c.height);
+    if (sensor === "90") {
+      g.translate(c.width, 0);
+      g.rotate(Math.PI / 2);
+    } else if (sensor === "270") {
+      g.translate(0, c.height);
+      g.rotate(-Math.PI / 2);
+    }
+    const boxW = turned ? c.height : c.width,
+      boxH = turned ? c.width : c.height;
+    const s = Math.min(boxW / img.naturalWidth, boxH / img.naturalHeight);
     const dw = img.naturalWidth * s,
       dh = img.naturalHeight * s;
-    (g.setTransform(1, 0, 0, 1, 0, 0),
-      (g.fillStyle = "#c4b2a4"),
-      g.fillRect(0, 0, c.width, c.height),
-      g.drawImage(img, (c.width - dw) / 2, (c.height - dh) / 2, dw, dh));
+    g.drawImage(img, (boxW - dw) / 2, (boxH - dh) / 2, dw, dh);
   };
   return (
     (img.onload = paint),
@@ -12533,7 +12543,7 @@ async function bf() {
   const fq = new URLSearchParams(location.search);
   const photo = fq.get("photo");
   if (photo) {
-    const stream = openPhotoStream(photo);
+    const stream = openPhotoStream(photo, fq.get("sensor"));
     if (stream) return stream;
   }
   if (fq.get("fixture") === "1") {
