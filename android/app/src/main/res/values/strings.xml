@@ -1,7 +1,0 @@
-<?xml version='1.0' encoding='utf-8'?>
-<resources>
-    <string name="app_name">化妆相机</string>
-    <string name="title_activity_main">化妆相机</string>
-    <string name="package_name">com.platonissex.makeupcamera</string>
-    <string name="custom_url_scheme">com.platonissex.makeupcamera</string>
-</resources>
