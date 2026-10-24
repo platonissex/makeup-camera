@@ -10991,6 +10991,18 @@ function creaseWash(t, e) {
     style: "shadowDeep",
   });
 }
+function browFill(t, e) {
+  return {
+    layers: t.layers.map((n) =>
+      n.style !== "brow"
+        ? n
+        : {
+            ...n,
+            fills: n.fills.map((r) => ({ ...r, alpha: e })),
+          },
+    ),
+  };
+}
 function g0(t, e) {
   const n = new Tr(t),
     r = (a, c, l) => h2(qo(a, n, c, 1).preview, l);
@@ -11022,7 +11034,8 @@ function g0(t, e) {
         o("s15_lips", "CENTER", 1.05))
       : e === "blush"
         ? (i("s08_brow_fill", 0.4), i("s14_blush", 1.05), o("s15_lips", "CENTER", 0.62))
-        : (i("s08_brow_fill", 0.48), o("s15_lips", "CENTER", 0.4));
+        : ((s = Bt(s, browFill(r("s08_brow_fill", "RIGHT", 0.62), 0.18))),
+          (s = Bt(s, browFill(r("s08_brow_fill", "LEFT", 0.62), 0.18))));
   const built = u1(t, n, [], [], [], !0, s);
   return ((built.look = e), built);
 }
@@ -13323,7 +13336,7 @@ function Df() {
     <div class="stack" style="margin-top:16px">
       ${t("daily_commute_v1", "日常通勤", "贴着睫毛的眼线和一点眼尾，卧蚕浅浅的。唇色中间深，边上淡出去。")}
       ${t("evening_glam_v1", "晚宴精致", "两层眼影、眼线和短眼尾，腮红上一点高光，嘴唇像薄薄一层唇釉。")}
-      ${t("natural_brow_v1", "自然眉", "只补眉毛，嘴唇一点颜色。")}
+      ${t("natural_brow_v1", "自然眉", "只补眉毛，眉头淡、眉身浅浅一层。")}
       ${t("vitality_blush_v1", "元气腮红", "腮红比日常多一点，嘴唇只染一层。")}
     </div>
     <button class="btn block" id="start" style="margin-top:16px">开始化妆</button>
