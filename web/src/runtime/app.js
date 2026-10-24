@@ -10920,13 +10920,19 @@ function p0(t, e, n, r, s) {
   return u1(t, o, i, a, c, n !== "brow", l);
 }
 function m0(t) {
-  return t.startsWith("natural_brow")
-    ? "soft"
-    : t.startsWith("vitality")
-      ? "blush"
-      : t.startsWith("evening") || t.startsWith("dinner")
-        ? "evening"
-        : "daily";
+  if (!t) return "";
+  if (t === "daily_commute_v1" || t === "daily" || t.startsWith("daily_")) return "daily";
+  if (
+    t === "evening_glam_v1" ||
+    t === "evening" ||
+    t === "dinner" ||
+    t.startsWith("evening") ||
+    t.startsWith("dinner")
+  )
+    return "evening";
+  if (t === "natural_brow_v1" || t === "soft" || t.startsWith("natural_brow")) return "soft";
+  if (t === "vitality_blush_v1" || t === "blush" || t.startsWith("vitality")) return "blush";
+  return "";
 }
 function lidCrease(t, e) {
   const up = Et(t),
@@ -12255,6 +12261,9 @@ const mt = document.createElement("canvas"),
 let Me = 0,
   fe = !1,
   Ur = !1,
+  orientLocked = !1,
+  missRun = 0,
+  upRun = 0,
   bn = !0,
   p1 = !1,
   ga = "",
@@ -12316,6 +12325,20 @@ let Me = 0,
   _s = 0;
 function Br() {
   return dn.find((t) => t.lookId === Je) ?? null;
+}
+function sessionLookId() {
+  return (P === "tryon" ? Jn : Je) || "";
+}
+function adoptLook(id) {
+  const next = id || "";
+  if (next !== Jn || next !== Je) {
+    lt = null;
+    Bn = null;
+    C = null;
+    On = null;
+  }
+  Jn = next;
+  Je = next;
 }
 function pn() {
   var t;
@@ -12517,10 +12540,13 @@ async function bf() {
     const stream = openFixtureStream(fq.get("motion") !== "0");
     if (stream) return stream;
   }
+  const portrait = devicePortrait();
   const t = {
     facingMode: { ideal: "user" },
-    width: { ideal: 720 },
-    height: { ideal: 1280 },
+    width: { ideal: portrait ? 720 : 1280 },
+    height: { ideal: portrait ? 1280 : 720 },
+    aspectRatio: { ideal: portrait ? 720 / 1280 : 1280 / 720 },
+    resizeMode: "crop-and-scale",
   };
   try {
     return await navigator.mediaDevices.getUserMedia({ audio: !1, video: t });
@@ -12609,6 +12635,7 @@ function leaveCamera() {
   });
 }
 async function startCamera(t) {
+  holdPortrait();
   const gen = ++camGen;
   Xt = "";
   vn = false;
@@ -12708,27 +12735,44 @@ document.addEventListener("visibilitychange", () => {
   E1();
 });
 function cr() {
-  const t = window.visualViewport,
-    e = t ? t.height : window.innerHeight,
-    n = t ? t.width : window.innerWidth;
+  const { w, h } = layoutBox();
   ((St.style.position = "fixed"),
     (St.style.top = "0px"),
     (St.style.left = "0px"),
     (St.style.right = "auto"),
     (St.style.bottom = "auto"),
-    (St.style.width = `${Math.round(n)}px`),
-    (St.style.height = `${Math.round(e)}px`),
+    (St.style.width = `${Math.round(w)}px`),
+    (St.style.height = `${Math.round(h)}px`),
     ws());
 }
 window.addEventListener("resize", cr);
 window.addEventListener("orientationchange", () => {
-  (Ur || (fe = !1), (ue = null), cr());
+  if (!Ur) {
+    fe = !1;
+    orientLocked = !1;
+    missRun = 0;
+    upRun = 0;
+    dropTrack();
+  }
+  cr();
 });
+if (screen.orientation && screen.orientation.addEventListener)
+  screen.orientation.addEventListener("change", () => {
+    if (!Ur) {
+      fe = !1;
+      orientLocked = !1;
+      missRun = 0;
+      upRun = 0;
+      dropTrack();
+    }
+    cr();
+  });
 var cl;
 (cl = window.visualViewport) == null || cl.addEventListener("resize", cr);
 var ll;
 (ll = window.visualViewport) == null || ll.addEventListener("scroll", cr);
 cr();
+holdPortrait();
 function sn(t) {
   return Number.isFinite(t) ? String(Math.round(t * 1e3) / 1e3) : "-";
 }
@@ -12795,7 +12839,8 @@ function v1(t) {
   if (!a) return;
   a.setTransform(n, 0, 0, n, 0, 0);
   const c = k1(t),
-    l = (P === "tryon" || Fe) && !!lt && s1(lt.preview);
+    want = sessionLookId(),
+    l = Fe && !!lt && lt.lookId === want && s1(lt.preview);
   y1 = l ? 1 : 0;
   const u = P === "guide" && t > ba && !Fe && !kn && fe,
     h = te > 1 && ee > 1 ? cn : null;
@@ -12826,7 +12871,9 @@ function v1(t) {
         ? "正在对准画面"
         : kn
           ? "没有看到脸，请正对镜头"
-          : "这是画完的样子。步骤里按住「看效果」也是这一层。";
+          : Fe
+            ? "这一妆开着。再点「关闭效果」就关掉。"
+            : "这一妆关着。点「看效果」打开。";
     f.textContent !== text && (f.textContent = text);
   }
 }
@@ -12866,21 +12913,91 @@ function kf() {
     e = t ? t.width : window.innerWidth;
   return (t ? t.height : window.innerHeight) + 1 >= e;
 }
+function coarsePointer() {
+  return window.matchMedia("(pointer: coarse)").matches;
+}
+function deviceAngle() {
+  const o = screen.orientation;
+  if (o && typeof o.angle === "number" && Number.isFinite(o.angle))
+    return ((o.angle % 360) + 360) % 360;
+  if (typeof window.orientation === "number" && Number.isFinite(window.orientation))
+    return ((window.orientation % 360) + 360) % 360;
+  return null;
+}
+function devicePortrait() {
+  if (coarsePointer()) {
+    const a = deviceAngle();
+    if (a === 0 || a === 180) return !0;
+    if (a === 90 || a === 270) return !1;
+  }
+  return kf();
+}
+function layoutBox() {
+  const t = window.visualViewport;
+  let w = t ? t.width : window.innerWidth,
+    h = t ? t.height : window.innerHeight;
+  if (coarsePointer() && devicePortrait() && w > h + 1) {
+    const s = w;
+    ((w = h), (h = s));
+  }
+  return { w, h };
+}
+function holdPortrait() {
+  if (!coarsePointer()) return;
+  const o = screen.orientation;
+  if (!o || typeof o.lock !== "function") return;
+  try {
+    const p = o.lock("portrait");
+    p && typeof p.catch === "function" && p.catch(() => {});
+  } catch {}
+}
+function dropTrack() {
+  ((ue = null),
+    (ht = null),
+    (C = null),
+    (On = null),
+    (lt = null),
+    (Bn = null),
+    (En = null),
+    (ko = null),
+    (vo = null),
+    (lastRawPx = null),
+    (lastFiltPx = null));
+}
+function headPose(t) {
+  const e = t[10],
+    n = t[152];
+  if (!e || !n) return "unknown";
+  const r = n.x - e.x,
+    s = n.y - e.y;
+  if (Math.hypot(r, s) < 0.04) return "unknown";
+  if (s > Math.abs(r)) return "up";
+  if (-s > Math.abs(r)) return "down";
+  return "side";
+}
+function advanceOrient() {
+  const t = [0, 90, 180, 270],
+    e = Math.max(0, t.indexOf(Me));
+  ((Me = t[(e + 1) % t.length]),
+    (orientLocked = !1),
+    (missRun = 0),
+    (upRun = 0),
+    dropTrack());
+}
 function Af(t, e) {
   const n = t > e,
-    r = kf();
+    r = devicePortrait();
   return r && n ? 270 : !r && e > t ? 90 : 0;
 }
 function xf() {
   const t = S.videoWidth,
     e = S.videoHeight;
-  if (!(t < 2 || e < 2)) {
-    if (!Ur) {
-      const n = Af(t, e);
-      (!fe || n !== Me) && ((Me = n), (ue = null), (ht = null), (C = null));
-    }
-    fe = !0;
+  if (t < 2 || e < 2) return;
+  if (!Ur && !fe) {
+    const n = Af(t, e);
+    (n !== Me && dropTrack(), (Me = n), (orientLocked = !1), (missRun = 0), (upRun = 0));
   }
+  fe = !0;
 }
 function x1() {
   const t = [0, 90, 180, 270],
@@ -12888,10 +13005,10 @@ function x1() {
   ((Me = t[(e + 1) % t.length]),
     (Ur = !0),
     (fe = !0),
-    (ue = null),
-    (ht = null),
-    (C = null),
-    (En = null));
+    (orientLocked = !0),
+    (missRun = 0),
+    (upRun = 0),
+    dropTrack());
 }
 function M1() {
   ((bn = !bn), (p1 = !0));
@@ -12912,42 +13029,38 @@ function Lf(t, e, n, r, s) {
     t.setTransform(1, 0, 0, 1, 0, 0));
 }
 function ol(t) {
-  let e = 1,
+  if (!t || t.length < 478) return !1;
+  let e = 0,
     n = 1,
-    r = 0,
-    s = 0;
+    r = 1,
+    s = 0,
+    o = 0;
   for (const a of t) {
-    if (
-      !Number.isFinite(a.x) ||
-      !Number.isFinite(a.y) ||
-      a.x < -0.08 ||
-      a.x > 1.08 ||
-      a.y < -0.08 ||
-      a.y > 1.08
-    )
-      return !1;
-    (a.x < e && (e = a.x),
-      a.y < n && (n = a.y),
-      a.x > r && (r = a.x),
-      a.y > s && (s = a.y));
+    if (!Number.isFinite(a.x) || !Number.isFinite(a.y)) return !1;
+    a.x >= -0.15 && a.x <= 1.15 && a.y >= -0.15 && a.y <= 1.15 && e++;
+    (a.x < n && (n = a.x),
+      a.y < r && (r = a.y),
+      a.x > s && (s = a.x),
+      a.y > o && (o = a.y));
   }
-  const o = r - e,
-    i = s - n;
-  return o > 0.08 && i > 0.08 && o < 0.98 && i < 0.98;
+  if (e / t.length < 0.75) return !1;
+  const i = s - n,
+    a = o - r;
+  if (!(i > 0.08 && a > 0.08 && i <= 1.2 && a <= 1.2)) return !1;
+  const c = t[1];
+  return !!c && c.x > 0.02 && c.x < 0.98 && c.y > 0.02 && c.y < 0.98;
 }
 function L1() {
   const t = S.videoWidth,
     e = S.videoHeight;
   if (t < 2 || e < 2) return !1;
-  ((t !== Qc || e !== tl) &&
+  (t !== Qc || e !== tl) &&
     ((Qc = t),
     (tl = e),
-    (ue = null),
-    (ht = null),
-    (C = null),
-    (En = null),
-    A1()),
-    xf());
+    dropTrack(),
+    Ur || ((fe = !1), (orientLocked = !1), (missRun = 0), (upRun = 0)),
+    A1());
+  xf();
   const n = Me,
     r = Mf(t, e, n);
   ((cn.width !== r.w || cn.height !== r.h) &&
@@ -13048,21 +13161,47 @@ function If(t) {
         c.length >= 478 &&
         !ol(c) &&
         Le === "GPU" &&
+        orientLocked &&
         (Jo++, Jo >= 3 && _f("landmarks outside the frame")),
         (kn = !0),
         (Ar = !c),
         (C = null),
         (lt = null),
-        (En = null));
+        (En = null),
+        !Ur &&
+          !orientLocked &&
+          fe &&
+          (missRun++, missRun >= 8 && advanceOrient()));
       return;
     }
-    const u = c[10],
-      h = c[152];
-    ((En = !!u && !!h && h.y - u.y > 0.04 && h.y - u.y > Math.abs(h.x - u.x)),
-      (kn = !1));
-    const p = (P === "tryon" ? Jn : Je) || "",
+    const pose = headPose(c);
+    if (!Ur && !orientLocked) {
+      if (pose === "up") ((missRun = 0), upRun++, upRun >= 2 && (orientLocked = !0));
+      else {
+        ((upRun = 0),
+          (kn = !0),
+          (Ar = !1),
+          (C = null),
+          (lt = null),
+          (Bn = null),
+          (En = !1));
+        if (pose === "unknown") missRun++, missRun >= 8 && advanceOrient();
+        else {
+          missRun++;
+          if (missRun >= 2) {
+            pose === "down" ? ((Me = (Me + 180) % 360), dropTrack()) : advanceOrient();
+            missRun = 0;
+          }
+        }
+        return;
+      }
+    }
+    ((En = pose === "up"), (kn = !1));
+    const p = sessionLookId(),
+      kind = m0(p),
       f = P === "guide" ? pn() : null;
-    if ((P === "guide" && !f) || !p) return;
+    if (lt && lt.lookId !== p) ((lt = null), (Bn = null));
+    if ((P === "guide" && !f) || !kind) return;
     const d = {};
     for (const R of ((o = (s = a.faceBlendshapes) == null ? void 0 : s[0]) ==
     null
@@ -13087,7 +13226,7 @@ function If(t) {
       if (it || N) {
         if (((Ar = !0), On && ko)) {
           const K = U2(ko, g, Cc);
-          ((C = Fc(On, K)), Bn && (lt = Fc(Bn, K)));
+          ((C = Fc(On, K)), Bn && Bn.lookId === p && (lt = Fc(Bn, K)));
         }
         return;
       }
@@ -13108,8 +13247,9 @@ function If(t) {
         it = p0(T, R, f.region, f.side, Gt);
       ((C = it), (On = it));
     } else ((C = null), (On = null));
-    const M = g0(T, m0(p));
-    ((lt = M),
+    const M = g0(T, kind);
+    ((M.lookId = p),
+      (lt = M),
       (Bn = M),
       (ko = Cc.map((R) => g[R])),
       (vo = g),
@@ -13347,6 +13487,19 @@ function Df() {
     <p class="muted" style="margin-top:14px">Safari 里可以用「添加到主屏幕」，全屏打开。</p>
   </section>`;
 }
+function holdButton() {
+  return `<button class="hold${Fe ? " on" : ""}" id="hold" type="button" aria-pressed="${Fe ? "true" : "false"}">${Fe ? "关闭效果" : "看效果"}</button>`;
+}
+function bindHold() {
+  const r = document.querySelector("#hold");
+  if (!r) return;
+  r.addEventListener("click", (f) => {
+    (f.preventDefault(), (Fe = !Fe));
+    (r.classList.toggle("on", Fe),
+      r.setAttribute("aria-pressed", Fe ? "true" : "false"),
+      (r.textContent = Fe ? "关闭效果" : "看效果"));
+  });
+}
 function Uf() {
   const t = dn.find((n) => n.lookId === Jn),
     e = (t == null ? void 0 : t.name) ?? "试妆";
@@ -13355,6 +13508,7 @@ function Uf() {
     <div class="dock tryon-dock">
       <p class="kicker">试妆 · ${_t(e)}</p>
       <p class="muted tryon-note" data-try-status>正在对准画面</p>
+      ${holdButton()}
       <button class="btn block" id="follow" type="button">开始跟着画</button>
       <div class="row">
         <button class="text-btn" id="back" type="button">换一个妆</button>
@@ -13365,7 +13519,8 @@ function Uf() {
   </div>`;
 }
 async function Bf(t) {
-  if (((Jn = t), (Je = t), (lt = null), (Bn = null), !ze)) {
+  (adoptLook(t), (Fe = !0), (lt = null), (Bn = null), (C = null), (On = null));
+  if (!ze) {
     await b1("tryon");
     return;
   }
@@ -13443,7 +13598,7 @@ function Wf() {
         <p class="tool cyan" data-tool>${_t((t == null ? void 0 : t.toolLabel) ?? "")} · ${d1((t == null ? void 0 : t.pressure) ?? "")}${s}</p>
         <p class="tip" data-phase>${_t((t == null ? void 0 : t.script.voice) ?? "")}</p>
       </button>
-      <button class="hold" id="hold" type="button">看效果</button>
+      ${holdButton()}
       <p class="muted intensity-line" data-intensity>提示强度 ${a1(Be)}，长按标题可换</p>
       <div class="bar"><span data-bar style="width:${((Rt + 1) / n) * 100}%"></span></div>
       <div class="hud-more" id="more" hidden>
@@ -13532,8 +13687,9 @@ function $f() {
   (Ea(),
     (t = document.querySelector("#follow")) == null ||
       t.addEventListener("click", () => {
-        ((Je = Jn), (Rt = 0), (P = "guide"), Ir(), X());
+        (adoptLook(Jn), (Rt = 0), (P = "guide"), Ir(), X());
       }),
+    bindHold(),
     (e = document.querySelector("#back")) == null ||
       e.addEventListener("click", () => {
         ((P = "start"), X(), leaveCamera());
@@ -13562,7 +13718,7 @@ function Yf() {
     }),
     (r = document.querySelector("#resume")) == null ||
       r.addEventListener("click", () => {
-        ((Je = localStorage.getItem("progressLook")),
+        (adoptLook(localStorage.getItem("progressLook")),
           (Rt = Number(localStorage.getItem("progressStep") || "0")),
           (P = "guide"),
           Ir(),
@@ -13574,7 +13730,7 @@ function Yf() {
       }),
     (o = document.querySelector("#go")) == null ||
       o.addEventListener("click", () => {
-        ((Je = Zo), (Rt = 0), (P = "guide"), Ir(), X());
+        (adoptLook(Zo), (Rt = 0), (P = "guide"), Ir(), X());
       }),
     (i = document.querySelector("#home")) == null ||
       i.addEventListener("click", () => {
@@ -13624,18 +13780,7 @@ function qf() {
       t.addEventListener("pointerleave", () => {
         (e != null && clearTimeout(e), (e = null));
       }));
-  const r = document.querySelector("#hold"),
-    s = (f) => {
-      (f.preventDefault(), (Fe = !0));
-    },
-    o = () => {
-      Fe = !1;
-    };
-  (r == null || r.addEventListener("pointerdown", s),
-    r == null || r.addEventListener("pointerup", o),
-    r == null || r.addEventListener("pointercancel", o),
-    r == null || r.addEventListener("pointerleave", o),
-    Ea(),
+  (bindHold(), Ea(),
     (a = document.querySelector("#replay")) == null ||
       a.addEventListener("click", () => wr()),
     (c = document.querySelector("#prev")) == null ||
@@ -13696,18 +13841,17 @@ function _t(t) {
 }
 const zf = {
   goto(t, e) {
-    ((Je = t), (Jn = t), (Rt = e), (P = "guide"), Ir(), (hn = null), X());
+    (adoptLook(t), (Rt = e), (P = "guide"), Ir(), (hn = null), X());
   },
   tryOn(t) {
-    ((Jn = t),
-      (Je = t),
+    (adoptLook(t),
       (P = "tryon"),
       (C = null),
       (lt = null),
       (On = null),
       (Bn = null),
       (hn = null),
-      (Fe = !1),
+      (Fe = !0),
       X());
   },
   settle() {
@@ -13717,7 +13861,12 @@ const zf = {
     ((hn = { phase: t, progress: e, pulse: 0, settled: n }), (Fe = !1));
   },
   hold(t) {
-    Fe = t;
+    Fe = !!t;
+    const r = document.querySelector("#hold");
+    r &&
+      (r.classList.toggle("on", Fe),
+      r.setAttribute("aria-pressed", Fe ? "true" : "false"),
+      (r.textContent = Fe ? "关闭效果" : "看效果"));
   },
   cycleRotation: x1,
   toggleMirror: M1,
@@ -13807,7 +13956,18 @@ const zf = {
       trackW: ya,
       trackH: _a,
       headUp: En,
+      poseLock: orientLocked,
+      portrait: devicePortrait(),
     };
+  },
+  get lookId() {
+    return sessionLookId();
+  },
+  get lookKind() {
+    return (lt && lt.look) || "";
+  },
+  get effectOn() {
+    return Fe;
   },
   get appearance() {
     return k1(performance.now());
@@ -13900,6 +14060,6 @@ w1();
 X();
 bootQ.get("mirror") === "0" && ((bn = !1), (p1 = !0));
 const bootLook = bootQ.get("try");
-bootLook && ((Jn = bootLook), (Je = bootLook));
+bootLook && (adoptLook(bootLook), (Fe = !0));
 (bootQ.get("fixture") === "1" || bootQ.get("still") || bootQ.get("photo")) &&
   b1(bootLook ? "tryon" : "start");
