@@ -12521,18 +12521,124 @@ async function bf() {
     throw e;
   }
 }
-async function b1(t = "home") {
-  Xt = "";
+let camGen = 0,
+  playP = null,
+  camTail = Promise.resolve(),
+  frameLoop = 0;
+function stopTracks(stream) {
+  if (!stream || typeof stream.getTracks != "function") return;
+  for (const tr of stream.getTracks()) {
+    try {
+      tr.stop();
+    } catch {}
+  }
+}
+function isPlayAbort(e) {
+  return !!e && e.name === "AbortError";
+}
+function enqueueCam(fn) {
+  const run = camTail.then(fn, fn);
+  camTail = run.then(
+    () => {},
+    () => {},
+  );
+  return run;
+}
+async function settlePlay() {
+  const p = playP;
+  if (!p) return;
   try {
-    ((ze = await bf()),
-      (S.srcObject = ze),
-      await S.play(),
-      (vn = !0),
-      A1(),
-      (P = t),
-      cr(),
-      E1());
+    await p;
+  } catch {}
+}
+async function playAttached(gen) {
+  await settlePlay();
+  if (gen !== camGen) return false;
+  let p;
+  try {
+    p = S.play();
   } catch (e) {
+    if (gen !== camGen || isPlayAbort(e)) return false;
+    throw e;
+  }
+  playP = p;
+  p.catch(() => {});
+  try {
+    await p;
+    return gen === camGen;
+  } catch (e) {
+    if (gen !== camGen || isPlayAbort(e)) return false;
+    throw e;
+  } finally {
+    if (playP === p) playP = null;
+  }
+}
+function detachVideo() {
+  try {
+    S.pause();
+  } catch {}
+  if (S.srcObject) S.srcObject = null;
+  try {
+    S.load();
+  } catch {}
+}
+function leaveCamera() {
+  const gen = ++camGen;
+  vn = false;
+  const stream = ze;
+  ze = null;
+  return enqueueCam(async () => {
+    if (gen !== camGen) return;
+    stopTracks(stream);
+    await settlePlay();
+    if (gen !== camGen) return;
+    detachVideo();
+  });
+}
+async function startCamera(t) {
+  const gen = ++camGen;
+  Xt = "";
+  vn = false;
+  await settlePlay();
+  if (gen !== camGen) return;
+  const old = ze;
+  ze = null;
+  stopTracks(old);
+  await settlePlay();
+  if (gen !== camGen) return;
+  detachVideo();
+  let stream = null;
+  try {
+    stream = await bf();
+    if (gen !== camGen) {
+      stopTracks(stream);
+      return;
+    }
+    ze = stream;
+    S.srcObject = stream;
+    let ok = await playAttached(gen);
+    if (gen !== camGen) return;
+    if (!ok && !document.hidden) ok = await playAttached(gen);
+    if (gen !== camGen) return;
+    if (!ok && !document.hidden) {
+      if (ze === stream) {
+        ze = null;
+        stopTracks(stream);
+        detachVideo();
+      }
+      return;
+    }
+    vn = !document.hidden;
+    A1();
+    P = t;
+    cr();
+    if (vn) E1();
+  } catch (e) {
+    if (gen !== camGen || isPlayAbort(e)) return;
+    if (ze === stream) {
+      ze = null;
+      stopTracks(stream);
+    }
     const n = e instanceof DOMException ? e.name : "";
     n === "NotAllowedError" || n === "PermissionDeniedError"
       ? (Xt =
@@ -12543,21 +12649,24 @@ async function b1(t = "home") {
           ? (Xt = "相机：摄像头被别的应用占用了。" + Rr(e))
           : (Xt = "相机：" + Rr(e));
   }
-  X();
+  if (gen === camGen) X();
+}
+function b1(t = "home") {
+  return enqueueCam(() => startCamera(t));
 }
 function E1() {
-  if (Ao) return;
+  const token = ++frameLoop;
   Ao = !0;
   const t = (n) => {
-    if (!vn) {
-      Ao = !1;
+    if (token !== frameLoop || !vn) {
+      if (token === frameLoop) Ao = !1;
       return;
     }
     (sl(n), requestAnimationFrame(t));
   };
   requestAnimationFrame(t);
   const e = () => {
-    if (!vn) return;
+    if (token !== frameLoop || !vn) return;
     sl(performance.now());
     const n = S.requestVideoFrameCallback;
     typeof n == "function" && n.call(S, e);
@@ -12566,9 +12675,17 @@ function E1() {
     S.requestVideoFrameCallback(e);
 }
 document.addEventListener("visibilitychange", () => {
-  document.hidden
-    ? ((vn = !1), S.pause())
-    : ze && ((vn = !0), S.play().catch(() => {}), E1());
+  if (document.hidden) {
+    vn = false;
+    try {
+      S.pause();
+    } catch {}
+    return;
+  }
+  if (!ze) return;
+  vn = true;
+  void playAttached(camGen).catch(() => {});
+  E1();
 });
 function cr() {
   const t = window.visualViewport,
@@ -13370,7 +13487,7 @@ function $f() {
       }),
     (e = document.querySelector("#back")) == null ||
       e.addEventListener("click", () => {
-        ((P = "start"), X());
+        ((P = "start"), X(), leaveCamera());
       }));
 }
 function Yf() {
@@ -13412,7 +13529,7 @@ function Yf() {
       }),
     (i = document.querySelector("#home")) == null ||
       i.addEventListener("click", () => {
-        ((P = "home"), X());
+        ((P = "home"), X(), leaveCamera());
       }),
     document.querySelectorAll(".seg button").forEach((a) => {
       a.addEventListener("click", () => {
@@ -13499,7 +13616,10 @@ function qf() {
       return;
     }
     const m = document.querySelector("#view");
-    ((ti = m ? m.toDataURL("image/jpeg", 0.86) : ""), (P = "finish"), X());
+    ((ti = m ? m.toDataURL("image/jpeg", 0.86) : ""),
+      (P = "finish"),
+      X(),
+      leaveCamera());
   };
   ((l = document.querySelector("#next")) == null ||
     l.addEventListener("click", i),
@@ -13507,7 +13627,7 @@ function qf() {
       u.addEventListener("click", i),
     (h = document.querySelector("#exit")) == null ||
       h.addEventListener("click", () => {
-        ((P = "home"), X());
+        ((P = "home"), X(), leaveCamera());
       }),
     ws(),
     (p = document.querySelector(".stage")) == null ||
