@@ -742,6 +742,11 @@ export function renderGlPigment(
     }
     if (layer.style === "lip") return drawLip(s, ctx, state, map, layer, tone);
     if (layer.style === "shadow" || layer.style === "shadowDeep") {
+      // A filled ribbon ends in a cap. Blur turns that cap into a hair at the
+      // outer canthus. Try-on lid color is an ellipse brush instead.
+      if (layer.brushes.length > 0 && layer.fills.length === 0) {
+        return drawBrushLayer(s, ctx, map, layer, tone, state);
+      }
       return drawShadow(s, ctx, map, layer, tone, state);
     }
     return false;
@@ -1125,11 +1130,14 @@ function drawBrushLayer(
     gl.drawArrays(gl.TRIANGLES, 0, 6);
     gl.disable(gl.BLEND);
     const hi = layer.style === "highlight";
+    const deep = layer.style === "shadowDeep";
+    const shadow = layer.style === "shadow" || deep;
     const rec = recipe(state.look);
-    const rgb: Rgb = hi ? [1, 0.96, 0.93] : rec.blush;
+    const rgb: Rgb = hi ? [1, 0.96, 0.93] : deep ? rec.deep : shadow ? rec.shadow : rec.blush;
     const mode: GlobalCompositeOperation = hi ? "soft-light" : "multiply";
-    const cap = hi ? rec.hiOp : rec.blushOp;
-    present(s, ctx, box, rgb, Math.min(cap, brush.alpha * tone * (hi ? 0.5 : 0.75)), 1.05, 0, mode, null);
+    const cap = hi ? rec.hiOp : deep ? rec.deepOp : shadow ? rec.shadowOp : rec.blushOp;
+    const gain = hi ? 0.5 : shadow ? 0.9 : 0.75;
+    present(s, ctx, box, rgb, Math.min(cap, brush.alpha * tone * gain), shadow ? 1.02 : 1.05, 0, mode, null);
     any = true;
   }
   if (any) remember(layer.style);

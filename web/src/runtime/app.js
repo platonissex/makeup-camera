@@ -10126,7 +10126,7 @@ function Z2(t, e, n) {
       y = h
         ? r.mul(0.96).add(s.mul(0.08)).norm()
         : p
-          ? s.mul(0.84).sub(r.mul(0.28)).norm()
+          ? s.mul(0.92).add(r.mul(0.16)).norm()
           : s.mul(0.62).add(r.mul(0.48)).norm(),
       _ = h ? u / 0.3 : p ? Math.max(0, 1 - (u - 0.82) / 0.18) : 1,
       b = (h ? 0.08 : p ? 0.11 : 0.18) * _;
@@ -10139,9 +10139,13 @@ function Z2(t, e, n) {
         K = m * (h ? 0.72 : p ? 0.42 * _ : 0.64),
         Mt = go(n, N, N.sub(y.mul(K * (h ? 0.12 : 0.28)))),
         D = go(n, N, N.add(y.mul(K * (h ? 0.88 : 0.64))));
+      const corners = [t.px[33], t.px[263]],
+        nearEye = (q) => corners.some((c) => c && q.sub(c).len() < t.fw * 0.09);
       D.sub(Mt).len() < t.fw * 0.0025 ||
         a(Mt) ||
         a(D) ||
+        nearEye(Mt) ||
+        nearEye(D) ||
         o.push({
           a: Mt,
           b: D,
@@ -10937,57 +10941,54 @@ function lidCrease(t, e) {
     crease: Math.min(t.fw * 0.09, Math.max(t.fw * 0.046, room * 0.68)),
   };
 }
-function lidRibbon(lid, up, from, to, heightAt) {
-  const n = 14,
-    lower = [],
-    upper = [];
-  for (let i = 0; i <= n; i++) {
-    const k = i / n,
-      u = from + (to - from) * k,
-      p = Pt(lid, !1, Math.min(0.97, u))[0],
-      h = Math.max(2, heightAt(k));
-    (lower.push(p), upper.push(p.add(up.mul(h))));
-  }
-  return upper.concat(lower.slice().reverse());
-}
-function lidWash(t, e) {
+function lidEllipse(t, e, spec) {
   const span = lidCrease(t, e);
   if (!span) return Re();
-  const pts = lidRibbon(span.lid, span.up, 0.05, 0.9, (k) => {
-    const belly = Math.sin(Math.PI * k);
-    return span.crease * (0.46 + 0.54 * belly);
-  });
+  const frame = t.frame(e),
+    p = Pt(span.lid, !1, spec.u)[0],
+    center = p.add(span.up.mul(span.crease * spec.lift)),
+    axis = frame.xAxis,
+    perp = axis.perpToward(span.up);
   return _e({
-    style: "shadow",
-    fills: [{ points: pts, alpha: 0.94 }],
+    style: spec.style,
+    fills: [],
     hairs: [],
     lines: [],
-    brushes: [],
+    brushes: [
+      {
+        center,
+        axis,
+        perp,
+        alongOut: frame.ew * spec.out,
+        alongIn: frame.ew * spec.inn,
+        across: Math.max(t.fw * 0.012, span.crease * spec.across),
+        alpha: spec.alpha,
+      },
+    ],
+  });
+}
+function lidWash(t, e) {
+  // Gaussian on the mid lid. alongOut is aimed at the canthus and stays
+  // inside ~3 sigma of it, so the falloff is an oval, not a corner hair.
+  return lidEllipse(t, e, {
+    u: 0.4,
+    lift: 0.36,
+    out: 0.16,
+    inn: 0.22,
+    across: 0.4,
+    alpha: 0.96,
+    style: "shadow",
   });
 }
 function creaseWash(t, e) {
-  const span = lidCrease(t, e);
-  if (!span) return Re();
-  const n = 12,
-    from = 0.58,
-    to = 0.9,
-    lower = [],
-    upper = [];
-  for (let i = 0; i <= n; i++) {
-    const k = i / n,
-      u = from + (to - from) * k,
-      p = Pt(span.lid, !1, u)[0],
-      belly = Math.sin(Math.PI * k),
-      base = span.crease * (0.4 + 0.08 * belly),
-      top = Math.max(base + t.fw * 0.016, span.crease * (0.52 + 0.4 * belly));
-    (lower.push(p.add(span.up.mul(base))), upper.push(p.add(span.up.mul(top))));
-  }
-  return _e({
+  return lidEllipse(t, e, {
+    u: 0.56,
+    lift: 0.55,
+    out: 0.08,
+    inn: 0.1,
+    across: 0.24,
+    alpha: 0.72,
     style: "shadowDeep",
-    fills: [{ points: upper.concat(lower.slice().reverse()), alpha: 0.82 }],
-    hairs: [],
-    lines: [],
-    brushes: [],
   });
 }
 function g0(t, e) {
