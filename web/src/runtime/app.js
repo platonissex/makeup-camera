@@ -10707,10 +10707,10 @@ function h0(t, e) {
         center: a,
         axis,
         perp,
-        alongOut: o * 0.105,
-        alongIn: o * 0.05,
-        across: o * 0.034,
-        alpha: 0.12,
+        alongOut: o * 0.072,
+        alongIn: o * 0.066,
+        across: o * 0.055,
+        alpha: 0.82,
       },
     ],
   });
@@ -11009,6 +11009,20 @@ function browFill(t, e) {
     ),
   };
 }
+function skinWash(t) {
+  const oval = Ae(t, "face_oval");
+  if (oval.length < 8) return Re();
+  const holes = ["right_eye", "left_eye", "right_brow", "left_brow", "lip_outer"]
+    .map((n) => Ae(t, n))
+    .filter((n) => n.length >= 3);
+  return _e({
+    style: "skin",
+    fills: [{ points: oval, alpha: 1, holes }],
+    hairs: [],
+    lines: [],
+    brushes: [],
+  });
+}
 function g0(t, e) {
   const n = new Tr(t),
     r = (a, c, l) => h2(qo(a, n, c, 1).preview, l);
@@ -11019,29 +11033,23 @@ function g0(t, e) {
     i = (a, c) => {
       (o(a, "RIGHT", c), o(a, "LEFT", c));
     },
-    wash = (gain, deep) => {
-      (s = Bt(s, h2(lidWash(n, "RIGHT"), gain))),
-        (s = Bt(s, h2(lidWash(n, "LEFT"), gain))),
-        deep > 0 &&
-          ((s = Bt(s, h2(creaseWash(n, "RIGHT"), deep))),
-          (s = Bt(s, h2(creaseWash(n, "LEFT"), deep))));
+    brows = (gain, alpha) => {
+      (s = Bt(s, browFill(r("s08_brow_fill", "RIGHT", gain), alpha))),
+        (s = Bt(s, browFill(r("s08_brow_fill", "LEFT", gain), alpha)));
     };
+  // Skin mask first. The fill alpha is the beauty strength.
+  s = Bt(s, h2(skinWash(n), e === "soft" ? 0.52 : e === "evening" ? 1 : 0.88));
   e === "daily"
-    ? (i("s08_brow_fill", 0.42),
-      wash(1, 0.8),
-      i("s14_blush", 0.7),
-      o("s15_lips", "CENTER", 0.72))
+    ? (brows(0.78, 0.17), i("s14_blush", 0.9), o("s15_lips", "CENTER", 0.68))
     : e === "evening"
-      ? (i("s08_brow_fill", 0.58),
-        wash(1, 1),
-        i("s14_blush", 0.95),
-        (s = Bt(s, h2(jc(n, "RIGHT"), 0.4))),
-        (s = Bt(s, h2(jc(n, "LEFT"), 0.4))),
-        o("s15_lips", "CENTER", 1.05))
+      ? (brows(0.82, 0.21),
+        i("s14_blush", 1),
+        (s = Bt(s, h2(jc(n, "RIGHT"), 0.22))),
+        (s = Bt(s, h2(jc(n, "LEFT"), 0.22))),
+        o("s15_lips", "CENTER", 0.96))
       : e === "blush"
-        ? (i("s08_brow_fill", 0.4), i("s14_blush", 1.05), o("s15_lips", "CENTER", 0.62))
-        : ((s = Bt(s, browFill(r("s08_brow_fill", "RIGHT", 0.62), 0.18))),
-          (s = Bt(s, browFill(r("s08_brow_fill", "LEFT", 0.62), 0.18))));
+        ? (brows(0.6, 0.13), i("s14_blush", 1.15), o("s15_lips", "CENTER", 0.52))
+        : brows(0.62, 0.18);
   const built = u1(t, n, [], [], [], !0, s);
   return ((built.look = e), built);
 }
@@ -11560,6 +11568,7 @@ function W0(t, e, n) {
   }
 }
 const j0 = [
+  "skin",
   "blush",
   "highlight",
   "shadow",
@@ -11656,14 +11665,15 @@ function X0(t, e, n, r, s) {
     t.save();
     K0(t, e, n, i.style);
     let used = !1;
-    if (GlStyles.has(i.style)) {
+    if (i.style === "skin" || GlStyles.has(i.style)) {
       try {
         used = renderGlPigment(t, e, n, i, s);
       } catch (err) {
         (console.warn("WebGL makeup", err), (used = !1));
       }
     }
-    used || X0Layer(t, e, n, r, s, i);
+    // The skin mask is only the beauty pass. A canvas fill would paint a blotch.
+    (i.style === "skin" || used) || X0Layer(t, e, n, r, s, i);
     t.restore();
   }
 }
