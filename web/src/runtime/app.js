@@ -10129,7 +10129,7 @@ function Z2(t, e, n) {
           ? s.mul(0.84).sub(r.mul(0.28)).norm()
           : s.mul(0.62).add(r.mul(0.48)).norm(),
       _ = h ? u / 0.3 : p ? Math.max(0, 1 - (u - 0.82) / 0.18) : 1,
-      b = (h ? 0.14 : p ? 0.2 : 0.33) * _;
+      b = (h ? 0.08 : p ? 0.11 : 0.18) * _;
     for (let T = 0; T < g; T++) {
       const M = (T + 0.5) / g,
         R = Math.sin(l * 12.9898 + T * 4.7) * 0.1,
@@ -10681,10 +10681,18 @@ function u0(t, e, n) {
   };
 }
 function h0(t, e) {
-  const [n, r, s] = pa(t, e),
+  const [n] = pa(t, e),
     o = t.fw,
-    i = Et(t),
-    a = n.add(r.mul(o * 0.075)).add(i.mul(o * 0.02));
+    i = Et(t);
+  let across = bt(t, "R_EYE_OUTER", e).sub(bt(t, "R_EYE_INNER", e));
+  across.len() < 1 && (across = new q(1, 0));
+  across = across.norm();
+  let axis = across.mul(0.9).add(i.mul(0.32)).norm();
+  const mid = t.px[1] ? t.px[1].x : n.x;
+  (n.x - mid) * axis.x < 0 && (axis = axis.mul(-1));
+  let perp = new q(-axis.y, axis.x);
+  perp.dot(i) < 0 && (perp = perp.mul(-1));
+  const a = n.add(axis.mul(o * 0.012)).sub(i.mul(o * 0.008));
   return _e({
     style: "blush",
     fills: [],
@@ -10693,12 +10701,12 @@ function h0(t, e) {
     brushes: [
       {
         center: a,
-        axis: r,
-        perp: s,
-        alongOut: o * 0.28,
-        alongIn: o * 0.04,
-        across: o * 0.065,
-        alpha: 0.22,
+        axis,
+        perp,
+        alongOut: o * 0.105,
+        alongIn: o * 0.05,
+        across: o * 0.034,
+        alpha: 0.12,
       },
     ],
   });
@@ -10916,6 +10924,24 @@ function m0(t) {
         ? "evening"
         : "daily";
 }
+function softLiner(t, e, gain) {
+  const r = zs(t, e);
+  if (r.length < 4) return Re();
+  const s = [],
+    parts = 5;
+  for (let i = 0; i < parts; i++) {
+    const a0 = i / parts,
+      pts = yn(r, a0, (i + 1) / parts);
+    if (pts.length < 2) continue;
+    const fade = Math.pow(1 - a0, 1.35);
+    s.push({
+      points: pts,
+      alpha: 0.82 * gain * fade,
+      widthImg: t.fw * (0.00085 * fade + 0.00028),
+    });
+  }
+  return _e({ style: "liner", fills: [], hairs: [], lines: s, brushes: [] });
+}
 function g0(t, e) {
   const n = new Tr(t),
     r = (a, c, l) => h2(qo(a, n, c, 1).preview, l);
@@ -10925,35 +10951,31 @@ function g0(t, e) {
     },
     i = (a, c) => {
       (o(a, "RIGHT", c), o(a, "LEFT", c));
+    },
+    liner = (gain) => {
+      ((s = Bt(s, softLiner(n, "RIGHT", gain))), (s = Bt(s, softLiner(n, "LEFT", gain))));
     };
-  return (
-    e === "daily"
-      ? (i("s08_brow_fill", 1),
-        i("s10_eyeshadow", 1),
-        i("s12_eyeliner", 1),
-        i("s14_blush", 1),
-        o("s15_lips", "CENTER", 1))
-      : e === "evening"
-        ? (i("s08_brow_fill", 1),
-          i("s10_eyeshadow", 1.15),
-          (s = Bt(s, Hc(n, "RIGHT"))),
-          (s = Bt(s, Hc(n, "LEFT"))),
-          (s = Bt(s, Yo(n, "RIGHT", 0.36))),
-          (s = Bt(s, Yo(n, "LEFT", 0.36))),
-          (s = Bt(s, Wc(n, "RIGHT"))),
-          (s = Bt(s, Wc(n, "LEFT"))),
-          i("s14_blush", 1.12),
-          (s = Bt(s, jc(n, "RIGHT"))),
-          (s = Bt(s, jc(n, "LEFT"))),
-          o("s15_lips", "CENTER", 1.22),
-          (s = Bt(s, o0(n))))
-        : e === "blush"
-          ? (i("s08_brow_fill", 0.7),
-            i("s14_blush", 1.3),
-            o("s15_lips", "CENTER", 0.8))
-          : (i("s08_brow_fill", 1), o("s15_lips", "CENTER", 0.4)),
-    u1(t, n, [], [], [], !0, s)
-  );
+  e === "daily"
+    ? (i("s08_brow_fill", 0.42),
+      i("s10_eyeshadow", 0.55),
+      liner(0.85),
+      i("s14_blush", 0.7),
+      o("s15_lips", "CENTER", 0.72))
+    : e === "evening"
+      ? (i("s08_brow_fill", 0.58),
+        i("s10_eyeshadow", 0.85),
+        (s = Bt(s, h2(Hc(n, "RIGHT"), 0.55))),
+        (s = Bt(s, h2(Hc(n, "LEFT"), 0.55))),
+        liner(1.15),
+        i("s14_blush", 0.95),
+        (s = Bt(s, h2(jc(n, "RIGHT"), 0.4))),
+        (s = Bt(s, h2(jc(n, "LEFT"), 0.4))),
+        o("s15_lips", "CENTER", 1.05))
+      : e === "blush"
+        ? (i("s08_brow_fill", 0.4), i("s14_blush", 1.05), o("s15_lips", "CENTER", 0.62))
+        : (i("s08_brow_fill", 0.48), o("s15_lips", "CENTER", 0.4));
+  const built = u1(t, n, [], [], [], !0, s);
+  return ((built.look = e), built);
 }
 function rt(t) {
   return typeof t == "object" && t !== null && !Array.isArray(t);
@@ -11827,7 +11849,7 @@ function tf(t, e, n, r, s) {
     a: e.map(d.a),
     b: e.map(d.b),
     alpha: f1("brow", d.alpha * s),
-    width: Math.max(0.95, Math.min(1.4, e.mapLen(d.widthImg))),
+    width: Math.max(0.65, Math.min(1.05, e.mapLen(d.widthImg))),
   }));
   let i = 1 / 0,
     a = 1 / 0,
@@ -11854,7 +11876,7 @@ function tf(t, e, n, r, s) {
           (f.lineCap = "round"),
           f.stroke());
       };
-      (m(d.width + 0.6, d.alpha * 0.16), m(d.width, d.alpha));
+      m(d.width, d.alpha);
     }
     t.drawImage(wt, i, a);
   }
@@ -12400,8 +12422,35 @@ function openFixtureStream(motion) {
   const paint = () => paintFixture(g, c.width, c.height, performance.now() / 1000, motion);
   return (paint(), setInterval(paint, 33), c.captureStream(30));
 }
+function openPhotoStream(url) {
+  const c = document.createElement("canvas");
+  ((c.width = 720), (c.height = 1280));
+  const g = c.getContext("2d");
+  const img = new Image();
+  const paint = () => {
+    if (!g || !img.complete || !img.naturalWidth) return;
+    const s = Math.min(c.width / img.naturalWidth, c.height / img.naturalHeight);
+    const dw = img.naturalWidth * s,
+      dh = img.naturalHeight * s;
+    (g.setTransform(1, 0, 0, 1, 0, 0),
+      (g.fillStyle = "#c4b2a4"),
+      g.fillRect(0, 0, c.width, c.height),
+      g.drawImage(img, (c.width - dw) / 2, (c.height - dh) / 2, dw, dh));
+  };
+  return (
+    (img.onload = paint),
+    (img.src = url),
+    setInterval(paint, 80),
+    c.captureStream(12)
+  );
+}
 async function bf() {
   const fq = new URLSearchParams(location.search);
+  const photo = fq.get("photo");
+  if (photo) {
+    const stream = openPhotoStream(photo);
+    if (stream) return stream;
+  }
   if (fq.get("fixture") === "1") {
     const stream = openFixtureStream(fq.get("motion") !== "0");
     if (stream) return stream;
@@ -12757,10 +12806,13 @@ function Rf(t, e) {
 }
 async function If(t) {
   var r, s, o;
-  const fixture = new URLSearchParams(location.search).get("fixture") === "1";
+  const boot = new URLSearchParams(location.search);
+  const fixture = boot.get("fixture") === "1";
+  const photo = boot.get("photo");
+  const synthetic = fixture && !photo;
   if (
     ss ||
-    (!fixture && !Zt) ||
+    (!synthetic && !Zt) ||
     S.readyState < 2 ||
     (P !== "guide" && P !== "tryon") ||
     !L1()
@@ -12772,7 +12824,7 @@ async function If(t) {
   try {
     const i = Math.max(el + 1, t);
     el = i;
-    const a = fixture
+    const a = synthetic
       ? {
           faceLandmarks: [
             fixtureLandmarks(i / 1e3, new URLSearchParams(location.search).get("motion") !== "0"),
@@ -13616,4 +13668,5 @@ X();
 bootQ.get("mirror") === "0" && ((bn = !1), (p1 = !0));
 const bootLook = bootQ.get("try");
 bootLook && ((Jn = bootLook), (Je = bootLook));
-(bootQ.get("fixture") === "1" || bootQ.get("still")) && b1(bootLook ? "tryon" : "start");
+(bootQ.get("fixture") === "1" || bootQ.get("still") || bootQ.get("photo")) &&
+  b1(bootLook ? "tryon" : "start");
